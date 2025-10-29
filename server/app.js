@@ -13,10 +13,12 @@ import cookieParser from "cookie-parser";
  app.use(express.static("public"));
  app.use(cookieParser())
 
-//routes import
 
+//routes import
+import userRoute from "../server/src/routes/user.routes.js"
 
 //routes declaration
+app.use("/api/v1/users",userRoute)
 
 
  export {app}

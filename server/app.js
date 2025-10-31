@@ -18,6 +18,7 @@ app.use(cors({
  app.use(express.static("public"));
 app.use(cookieParser());
 
+
 // Routes declaration
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/executions", executionRoutes);
@@ -25,4 +26,13 @@ app.use("/api/executions", executionRoutes);
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-export { app };
+
+//routes import
+import userRoute from "../server/src/routes/user.routes.js"
+
+//routes declaration
+app.use("/api/v1/users",userRoute)
+
+
+ export {app}
+

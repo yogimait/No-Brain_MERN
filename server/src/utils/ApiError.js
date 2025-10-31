@@ -1,12 +1,19 @@
-// Custom API Error class
+
 class ApiError extends Error {
-  constructor(statusCode, message = "Something went wrong", errors = [], stack = "") {
-    super(message);
-    this.statusCode = statusCode;
-    this.data = null;
-    this.message = message;
-    this.success = false;
-    this.errors = errors;
+  constructor(
+    statusCode,
+    message = "something went wrong",
+    errors = [],
+    stack = ""
+  ) {
+    super(message); // 🔹 parent Error class ko message dena zaroori hai
+
+    this.statusCode = statusCode; // 🔹 jaise 404, 500, 401, etc.
+    this.data = null;             // 🔹 extra data (agar chaahe to add kar sakta hai)
+    this.message = message;       // 🔹 readable message
+    this.success = false;         // 🔹 API success false, useful for frontend logic
+    this.errors = errors;     
+
 
     if (stack) {
       this.stack = stack;
@@ -15,6 +22,7 @@ class ApiError extends Error {
     }
   }
 }
+
 
 export default ApiError;
 

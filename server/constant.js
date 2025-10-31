@@ -1,1 +1,1 @@
-export const DB_NAME = "no-brain"
+export const DB_NAME = "nobrain"

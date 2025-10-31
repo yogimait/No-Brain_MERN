@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { workflowAPI } from '../services/api';
 import { 
   Rocket, 
   Plus, 
@@ -112,7 +113,8 @@ import {
   EyeOff as EyeOffIcon,
   Volume2 as Volume2Icon,
   VolumeX as VolumeXIcon,
-  WifiOff as WifiOffIcon
+  WifiOff as WifiOffIcon,
+  Loader2
 } from 'lucide-react';
 
 // Stock market style data for workflows
@@ -406,7 +408,58 @@ export default function DashboardPage() {
   const [hoveredWorkflow, setHoveredWorkflow] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [workflows, setWorkflows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingWorkflow, setDeletingWorkflow] = useState(null);
   const modalRef = useRef();
+
+  // Fetch workflows from backend
+  useEffect(() => {
+    fetchWorkflows();
+  }, []);
+
+  const fetchWorkflows = async () => {
+    try {
+      setLoading(true);
+      // For now, use a dummy ownerId - in production, get from auth context
+      const ownerId = localStorage.getItem('userId') || '507f1f77bcf86cd799439011';
+      const response = await workflowAPI.getAll({ ownerId });
+      // Handle ApiResponse format: response is { success, data, message }
+      if (response && response.success && response.data) {
+        // response.data should be an array of workflows
+        setWorkflows(Array.isArray(response.data) ? response.data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWorkflow = async (workflowId) => {
+    if (!confirm('Are you sure you want to delete this workflow?')) return;
+    
+    try {
+      setDeletingWorkflow(workflowId);
+      await workflowAPI.delete(workflowId);
+      await fetchWorkflows(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting workflow:', error);
+      alert('Failed to delete workflow');
+    } finally {
+      setDeletingWorkflow(null);
+    }
+  };
+
+  const handleEditWorkflow = (workflow) => {
+    // Navigate to workflow page with workflow data
+    navigate('/workflow', { 
+      state: { 
+        workflowId: workflow._id,
+        workflowData: workflow 
+      } 
+    });
+  };
   // Modal ESC close support
   useEffect(() => {
     if (!showWorkflowModal) return;
@@ -461,14 +514,6 @@ export default function DashboardPage() {
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
-  };
-
-  const handleEditWorkflow = (workflowId) => {
-    setEditingWorkflow(workflowId);
-  };
-
-  const handleDeleteWorkflow = (workflowId) => {
-    console.log('Deleting workflow:', workflowId);
   };
 
   // Generate random price movements for stock market effect
@@ -578,6 +623,16 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 hover:border-blue-500 hover:text-blue-300 bg-gray-900/50"
+                onClick={() => navigate('/logs')}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Logs
+              </Button>
+              
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25"
                 onClick={() => setShowWorkflowModal(true)}
@@ -744,27 +799,53 @@ export default function DashboardPage() {
 
           {/* Horizontal Workflow Streams */}
           <div className="space-y-8">
-            {ongoingWorkflows.map((workflow) => (
-              <div key={workflow.id} className="relative bg-gray-900/20 backdrop-blur-sm rounded-lg border border-gray-700/50 p-6 hover:border-blue-500/50 transition-all duration-300">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                <span className="ml-3 text-gray-400">Loading workflows...</span>
+              </div>
+            ) : workflows.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Brain className="w-12 h-12 text-gray-500" />
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-400 mb-4">
+                  No Workflows Yet
+                </h3>
+                <p className="text-gray-500 mb-8 max-w-md mx-auto">
+                  Create your first automation workflow to start the magic.
+                  <span className="font-bold"> IT'S A NO-BRAINER!</span>
+                </p>
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25"
+                  onClick={() => setShowWorkflowModal(true)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Workflow
+                </Button>
+              </div>
+            ) : (
+              workflows.map((workflow) => {
+                // Convert workflow data to display format
+                const graph = workflow.graph || { nodes: [], edges: [] };
+                const status = 'completed'; // Default status for saved workflows
+                const progress = 100;
+                
+                return (
+              <div key={workflow._id} className="relative bg-gray-900/20 backdrop-blur-sm rounded-lg border border-gray-700/50 p-6 hover:border-blue-500/50 transition-all duration-300">
                 
                 {/* Workflow Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      workflow.status === 'running' ? 'bg-green-500/20' :
-                      workflow.status === 'paused' ? 'bg-yellow-500/20' :
-                      'bg-gray-500/20'
-                    }`}>
-                      {workflow.status === 'running' ? <Play className="w-6 h-6 text-green-400" /> :
-                       workflow.status === 'paused' ? <Pause className="w-6 h-6 text-yellow-400" /> :
-                       <Clock className="w-6 h-6 text-gray-400" />}
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-500/20">
+                      <CheckCircle className="w-6 h-6 text-green-400" />
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold text-white">
                         {workflow.name}
                       </h3>
                       <p className="text-sm text-gray-400">
-                        {workflow.platform} • {workflow.type} • Started: {workflow.startedAt}
+                        {workflow.description || 'No description'} • Created: {new Date(workflow.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
@@ -772,10 +853,10 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-lg font-bold text-white">
-                        {workflow.progress}%
+                        {graph.nodes?.length || 0} nodes
                       </p>
                       <p className="text-sm text-gray-400">
-                        ETA: {workflow.estimatedTime}
+                        {graph.edges?.length || 0} connections
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -783,7 +864,8 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         className="text-gray-300 border-gray-600 hover:border-blue-500 hover:text-blue-300"
-                        onClick={() => handleEditWorkflow(workflow.id)}
+                        onClick={() => handleEditWorkflow(workflow)}
+                        disabled={deletingWorkflow === workflow._id}
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
@@ -792,131 +874,45 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         className="text-gray-300 border-gray-600 hover:border-red-500 hover:text-red-300"
-                        onClick={() => handleDeleteWorkflow(workflow.id)}
+                        onClick={() => handleDeleteWorkflow(workflow._id)}
+                        disabled={deletingWorkflow === workflow._id}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingWorkflow === workflow._id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
                 </div>
 
-                {/* Horizontal Progress Line */}
-                <div className="relative mb-6">
-                  <div className="w-full h-1 rounded-full bg-gray-700">
-                    <div 
-                      className={`h-1 rounded-full transition-all duration-500 ${
-                        workflow.status === 'running' ? 'bg-gradient-to-r from-blue-500 to-green-500' : 
-                        workflow.status === 'paused' ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                        'bg-gray-500'
-                      }`}
-                      style={{ width: `${workflow.progress}%` }}
-                    ></div>
-                  </div>
-                  
-                  {/* Progress Steps */}
-                  <div className="flex justify-between mt-4">
-                    {workflow.linearSteps.map((step, stepIndex) => (
-                      <div key={step.id} className="flex flex-col items-center relative">
-                        {/* Connection Line */}
-                        {stepIndex < workflow.linearSteps.length - 1 && (
-                          <div className={`absolute top-6 left-6 w-full h-0.5 ${
-                            stepIndex < workflow.currentStepIndex ? 'bg-green-500' :
-                            stepIndex === workflow.currentStepIndex ? 'bg-blue-500' :
-                            'bg-gray-600'
-                          }`}></div>
-                        )}
-                        
-                        {/* Step Circle */}
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 relative z-10 ${
-                          step.status === 'completed' ? 'bg-green-500 border-green-500' :
-                          step.status === 'running' ? 'bg-blue-500 border-blue-500 animate-pulse' :
-                          'bg-gray-600 border-gray-600'
-                        }`}>
-                          {step.status === 'completed' ? 
-                            <CheckCircle className="w-6 h-6 text-white" /> : 
-                            step.icon
-                          }
+                {/* Simple Node Preview */}
+                <div className="mb-4 pt-4 border-t border-gray-700/50">
+                  <p className="text-sm text-gray-400 mb-2">
+                    Nodes in workflow: {graph.nodes?.length || 0}
+                  </p>
+                  {graph.nodes && graph.nodes.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {graph.nodes.slice(0, 6).map((node, idx) => (
+                        <div key={idx} className="px-2 py-1 bg-gray-800/50 rounded text-xs text-gray-300">
+                          {node.data?.label || node.id}
                         </div>
-                        
-                        {/* Step Info */}
-                        <div className="mt-2 text-center">
-                          <p className="text-xs font-medium text-gray-300">
-                            {step.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {step.duration}
-                          </p>
+                      ))}
+                      {graph.nodes.length > 6 && (
+                        <div className="px-2 py-1 bg-gray-800/50 rounded text-xs text-gray-300">
+                          +{graph.nodes.length - 6} more
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {/* Workflow Stats */}
-                <div className="grid grid-cols-4 gap-4 pt-4 border-t border-gray-700/50">
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Success Rate</p>
-                    <p className="text-sm font-semibold text-white">
-                      {workflow.successRate}%
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Last Run</p>
-                    <p className="text-sm font-semibold text-white">
-                      {workflow.lastRun}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Next Run</p>
-                    <p className="text-sm font-semibold text-white">
-                      {workflow.nextRun}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Platform</p>
-                    <p className="text-sm font-semibold text-white">
-                      {workflow.platform}
-                    </p>
-                  </div>
-                </div>
-
-                {/* System Warning Labels */}
-                {workflow.status === 'running' && (
-                  <div className="mt-4 p-2 rounded text-xs font-mono bg-green-500/10 text-green-400">
-                    ✓ WORKFLOW OPERATIONAL - IT'S A NO-BRAINER!
-                  </div>
-                )}
-                {workflow.status === 'paused' && (
-                  <div className="mt-4 p-2 rounded text-xs font-mono bg-yellow-500/10 text-yellow-400">
-                    ⚠ WORKFLOW PAUSED - CHECK CONFIGURATION
-                  </div>
-                )}
               </div>
-            ))}
+                );
+              })
+            )}
           </div>
 
-          {/* Empty State */}
-          {ongoingWorkflows.length === 0 && (
-            <div className="text-center py-20">
-              <div className="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Brain className="w-12 h-12 text-gray-500" />
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-400 mb-4">
-                No Active Workflows
-              </h3>
-              <p className="text-gray-500 mb-8 max-w-md mx-auto">
-                Your system is idle. Create your first automation workflow to start the magic.
-                <span className="font-bold"> IT'S A NO-BRAINER!</span>
-              </p>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25"
-                onClick={() => navigate('/workflow/create')}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create First Workflow
-              </Button>
-            </div>
-          )}
         </div>
       </div>
       <style>{`

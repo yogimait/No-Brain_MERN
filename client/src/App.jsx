@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Workflow from "./pages/Workflow.jsx";
 import AIPromptPage from './pages/aiPrompt';
 import CompleteWorkflowPage from "./pages/CompleteWorkflow.jsx";
+import Logs from "./pages/Logs.jsx";
 import { useState } from "react";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
         <Route path="/workflow" element={<Workflow />} />
         <Route path="/workflow/ai-prompt" element={<AIPromptPage />} />
         <Route path="/workflow/complete" element={<CompleteWorkflowPage />} />
+        <Route path="/logs" element={<Logs />} />
       </Routes>
     </Router>
   );

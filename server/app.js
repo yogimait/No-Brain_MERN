@@ -1,24 +1,37 @@
-import express from "express"
-import cors from "cors"
+import express from "express";
+import cors from "cors";
 import cookieParser from "cookie-parser";
+import { errorHandler } from "./src/middlewares/error.middleware.js";
 
- const app = express();
- app.use(cors({
-    origin:process.env.CORS_ORIGIN,
-    Credential:true
- }))
+const app = express();
 
- app.use(express.json({limit:"20kb"}))
- app.use(express.urlencoded({extended:true,limit:"20kb"}));
- app.use(express.static("public"));
- app.use(cookieParser())
+// CORS configuration
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    credentials: true
+}));
 
+// Body parsing middleware
+app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.static("public"));
+app.use(cookieParser());
 
-//routes import
-import userRoute from "../server/src/routes/user.routes.js"
+// Routes
+import authRoutes from "./src/routes/auth.routes.js"
 
-//routes declaration
-app.use("/api/v1/users",userRoute)
+app.use("/api/auth", authRoutes);
 
+// Health check route
+app.get("/api/health", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "Server is healthy",
+        timestamp: new Date().toISOString()
+    });
+});
 
- export {app}
+// Error handling middleware
+app.use(errorHandler);
+
+export { app };

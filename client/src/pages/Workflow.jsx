@@ -1,3 +1,7 @@
+
+
+
+
 import { useState, useEffect } from 'react';
 import { ReactFlowProvider } from 'reactflow'; 
 import Sidebar from '../components/Sidebar';
@@ -9,7 +13,6 @@ import {
   Plug, 
   Rows, 
   Rocket, 
-  ArrowLeft, 
   Brain, 
   Bot, 
   Mail, 
@@ -17,7 +20,10 @@ import {
   Play, 
   CheckCircle, 
   AlertCircle, 
-  Loader2 
+  Loader2,
+  Sparkles,
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
@@ -36,6 +42,7 @@ export default function WorkflowEditorPage() {
   const [testResults, setTestResults] = useState([]);
   const [workflowName, setWorkflowName] = useState("");
   const [showPromptBox, setShowPromptBox] = useState(false);
+  const [isPromptBoxVisible, setIsPromptBoxVisible] = useState(false); 
   const [promptInput, setPromptInput] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
   const promptBoxRef = useRef(null);
@@ -89,6 +96,17 @@ export default function WorkflowEditorPage() {
     };
   }, [dragging, dragOffset]);
 
+  // Animation control functions
+  const openPromptBox = () => {
+      setShowPromptBox(true);
+      setTimeout(() => setIsPromptBoxVisible(true), 10);
+  };
+  
+  const closePromptBox = () => {
+      setIsPromptBoxVisible(false);
+      setTimeout(() => setShowPromptBox(false), 300);
+  };
+
   // Utility for random node addition
   function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -127,7 +145,7 @@ export default function WorkflowEditorPage() {
     setNodes(ns => [...ns, ...newNodes]);
     setEdges(es => [...es, ...newEdges]);
     setPromptLoading(false);
-    setShowPromptBox(false);
+    closePromptBox();
     setPromptInput("");
   };
 
@@ -500,45 +518,48 @@ export default function WorkflowEditorPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <Brain className="w-8 h-8 text-blue-400" />
-              <span className="text-2xl font-bold text-blue-300">
-                Name Your No-Brainer
+              <Brain className="w-8 h-8 text-cyan-400" /> {/* Blue/Cyan Accent */}
+              <span className="text-2xl font-bold text-cyan-300"> {/* Blue/Cyan Accent */}
+                {workflowName}
               </span>
               <div className="ml-6 w-72 flex items-center">
                 <input
                   type="text"
                   placeholder="Workflow Name..."
                   value={workflowName}
+                  maxLength={20}
                   onChange={e => setWorkflowName(e.target.value)}
-                  className="bg-transparent border border-gray-700 rounded-md px-3 py-1.5 w-full text-white placeholder:text-gray-400 focus:outline-none focus:border-blue-400 text-base"
+                  className="bg-transparent border border-gray-700 rounded-md px-3 py-1.5 w-full text-white placeholder:text-gray-400 focus:outline-none focus:border-cyan-400 text-base" 
                 />
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              {/* <Button
-                variant="outline"
-                size="sm"
-                className="text-gray-300 border-gray-600 hover:border-blue-500 hover:text-blue-300"
-                onClick={() => navigate(isAIGenerated ? '/workflow/ai-summary' : '/workflow/create')}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button> */}
-              {/* PROMPT BUTTON START */}
+              {/* 🚀 ENHANCED PROMPT BUTTON START (Blue Theme) 🚀 */}
               <Button
                 variant="outline"
                 size="sm"
-                className="text-gray-300 border-gray-600 hover:border-yellow-500 hover:text-yellow-300"
-                onClick={() => setShowPromptBox(true)}
+                onClick={openPromptBox}
+                className="
+                  // Base Styles
+                  bg-cyan-600/10 text-cyan-300 border-cyan-500/50 
+                  hover:bg-cyan-700/20 
+                  // Glow Effect
+                  shadow-lg shadow-cyan-500/30 
+                  // Hover Animation
+                  transition-all duration-300 ease-in-out 
+                  hover:scale-[1.03] hover:shadow-cyan-500/50
+                  active:scale-[0.98]
+                "
               >
-                Prompt
+                <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
+                AI Prompt
               </Button>
-              {/* PROMPT BUTTON END */}
+              {/* 🚀 ENHANCED PROMPT BUTTON END 🚀 */}
               <Button
                 variant="outline"
                 size="sm"
-                className="text-gray-300 border-gray-600 hover:border-green-500 hover:text-green-300"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
                 onClick={runTest}
                 disabled={nodes.length === 0 || isTesting}
               >
@@ -552,7 +573,7 @@ export default function WorkflowEditorPage() {
               
               <Button
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200"
                 onClick={applyWorkflow}
                 disabled={nodes.length === 0 || !workflowName.trim() || isSubmitting}
               >
@@ -568,6 +589,14 @@ export default function WorkflowEditorPage() {
                   </>
                 )}
               </Button>
+              <Button
+                size="sm"
+                className="bg-gray-700 hover:bg-gray-600 text-white transition-colors duration-200"
+                onClick={() => navigate('/dashboard')}
+              >
+                Back
+                <ArrowLeft className="w-4 h-4 ml-2" />
+              </Button>
             </div>
           </div>
         </div>
@@ -581,13 +610,13 @@ export default function WorkflowEditorPage() {
             {/* AI Generated Banner */}
             {isAIGenerated && (
               <div className="absolute top-4 left-4 right-4 z-10">
-                <Card className="bg-gradient-to-r from-green-500/20 to-blue-500/20 border-green-500/30 p-4">
+                <Card className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30 p-4"> {/* Blue/Cyan Accent */}
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-500/20 rounded-lg">
-                      <Bot className="w-5 h-5 text-green-400" />
+                    <div className="p-2 bg-cyan-500/20 rounded-lg"> {/* Blue/Cyan Accent */}
+                      <Bot className="w-5 h-5 text-cyan-400" /> {/* Blue/Cyan Accent */}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-green-400 font-semibold">AI-Generated Workflow</h3>
+                      <h3 className="text-cyan-400 font-semibold">AI-Generated Workflow</h3> {/* Blue/Cyan Accent */}
                       <p className="text-gray-300 text-sm">This workflow was created by our AI. You can edit, add, or remove nodes as needed.</p>
                     </div>
                     <Button
@@ -623,7 +652,7 @@ export default function WorkflowEditorPage() {
         </ReactFlowProvider>
       </main>
 
-      {/* Test Results Sidebar */}
+      {/* Test Results Sidebar (Using Blue/Cyan Accents) */}
       {showTestResults && (
         <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
           <div className="p-6">
@@ -642,13 +671,13 @@ export default function WorkflowEditorPage() {
             {isTesting ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" /> {/* Blue/Cyan Accent */}
                   <span className="text-gray-300">Running tests...</span>
                 </div>
                 <div className="space-y-2">
                   {nodes.map((node) => (
                     <div key={node.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" /> {/* Blue/Cyan Accent */}
                       <span className="text-gray-300 text-sm">{node.data.label}</span>
                     </div>
                   ))}
@@ -700,7 +729,7 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
       )}
-      {/* PROMPT DRAGGABLE BOX */}
+      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) 🚀 */}
       {showPromptBox && (
         <div
           ref={promptBoxRef}
@@ -711,37 +740,83 @@ export default function WorkflowEditorPage() {
             position: 'absolute',
             minWidth: 350,
             maxWidth: 440,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+            // Dynamic transition based on state
+            transform: isPromptBoxVisible ? 'scale(1) translate(0, 0)' : 'scale(0.8) translate(-10px, -10px)',
+            opacity: isPromptBoxVisible ? 1 : 0,
+            transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.5, 1.2), opacity 0.3s ease-out',
+            // Custom box shadow for depth - Using a deep blue glow
+            boxShadow: '0 12px 40px rgba(0, 191, 255, 0.35)', 
             cursor: dragging?'move':undefined,
             userSelect: 'none',
           }}
           onMouseDown={onPromptMouseDown}
         >
-          <Card className="border-yellow-500 bg-gray-900/90 text-gray-100 px-4 py-4">
-            <div className="prompt-header flex items-center justify-between mb-3 cursor-move">
-              <span className="font-bold text-lg text-yellow-400">Prompt the AI</span>
-              <Button size="sm" variant="ghost" className="text-gray-300" onClick={() => setShowPromptBox(false)}>×</Button>
+          <Card className="
+            // Themed Background & Border - Using Cyan
+            bg-gray-900/95 backdrop-blur-md 
+            border-2 border-cyan-500/50 
+            rounded-xl overflow-hidden
+            text-gray-100 p-5
+          ">
+            <div className="prompt-header flex items-center justify-between mb-4 cursor-move border-b border-cyan-500/20 pb-2"> {/* Cyan Border */}
+              <span className="font-extrabold text-xl text-cyan-400 flex items-center gap-2"> {/* Cyan Text */}
+                <Brain className="w-5 h-5" /> AI Command Center
+              </span>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-gray-300 hover:text-white transition-colors p-1 h-auto" 
+                onClick={closePromptBox}
+              >
+                <X className="w-5 h-5" />
+              </Button>
             </div>
-            <label htmlFor="ai-prompt-input" className="text-gray-300 text-sm mb-1 font-medium block">Give command</label>
+            
+            <label htmlFor="ai-prompt-input" className="text-cyan-300 text-sm mb-2 font-semibold block">Describe the desired workflow change:</label> {/* Cyan Text */}
             <textarea
               id="ai-prompt-input"
-              rows={3}
+              rows={4}
               value={promptInput}
               onChange={e => setPromptInput(e.target.value)}
               disabled={promptLoading}
-              placeholder="Describe what you want the AI to change..."
-              className="resize-none rounded border border-gray-700 bg-transparent px-3 py-2 w-full text-base text-white placeholder:text-gray-400 focus:outline-none focus:border-yellow-400 mb-4"
+              placeholder="e.g., 'Add a step after the Summarizer to check sentiment, and only email if it's negative.'"
+              className="
+                resize-none rounded-lg border-2 border-gray-700 
+                bg-gray-800/50 px-4 py-3 w-full text-base 
+                text-white placeholder:text-gray-400 
+                focus:outline-none focus:border-cyan-500 transition-colors duration-200 
+                mb-5
+              "
             />
             <Button
-              className="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold mt-2"
+              className="
+                w-full 
+                // Blue/Cyan Gradient
+                bg-gradient-to-r from-cyan-500 to-blue-500 
+                hover:from-cyan-600 hover:to-blue-600 
+                text-gray-900 font-extrabold text-base 
+                shadow-md shadow-cyan-500/50 // Blue/Cyan Shadow
+                transition-all duration-300 ease-in-out 
+                disabled:opacity-50 disabled:cursor-not-allowed
+              "
               disabled={promptInput.trim().length === 0 || promptLoading}
               onClick={handleSendPrompt}
             >
-              {promptLoading ? (<span className="flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin"/>Sending...</span>) : 'Send Prompt'}
+              {promptLoading ? (
+                <span className="flex items-center">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin"/>Processing Command...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    Generate/Modify Workflow
+                </span>
+              )}
             </Button>
           </Card>
         </div>
       )}
+      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX END 🚀 */}
     </div>
   );
 }

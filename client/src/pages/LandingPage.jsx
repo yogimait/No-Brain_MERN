@@ -1,4 +1,13 @@
+
+
+
 import { Brain } from "lucide-react";
+import brain from "../assets/brain.png"
+import brainsvg from "../assets/brain.png"
+// 1. Import BackgroundBeams
+import { BackgroundBeams } from "../components/ui/background-beams"; 
+// Assuming cn utility is also needed if BackgroundBeams uses it and it's not imported inside the component itself.
+// The BackgroundBeams component imports 'cn' from '../lib/utils', so we don't need it here.
 
 function PulseBrain() {
   return (
@@ -78,16 +87,22 @@ function SideProfileBrainMesh() {
   );
 }
 
+
+
 export default function LandingPage() {
   return (
-    <div className="min-h-screen w-full bg-black flex flex-col justify-between">
-      <main className="flex flex-col md:flex-row items-center justify-between min-h-[92vh] w-full max-w-7xl mx-auto px-4 pb-2 pt-12 md:pt-4">
+    // 2. Add 'relative' to the container for BackgroundBeams positioning
+    <div className="min-h-screen w-full bg-black flex flex-col justify-between relative">
+      {/* 3. Render BackgroundBeams first, positioned absolutely to cover the background */}
+      <BackgroundBeams className="absolute top-0 left-0 w-full h-full" />
+      
+      <main className="flex flex-col md:flex-row items-center justify-between min-h-[92vh] w-full max-w-7xl mx-auto px-4 pb-2 pt-12 md:pt-4 relative z-10">
         {/* Left section */}
         <section className="flex flex-col items-start md:items-start justify-center gap-8 w-full md:w-6/12 md:pr-6 relative z-10">
-          <PulseBrain />
+          {/* <PulseBrain /> */}
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-2">
-            <span className="inline-block text-blue-400">NoBrain</span>
-            <span className="block text-2xl md:text-4xl pt-2 text-white font-semibold">It's truly a <span className="bg-linear-to-r from-green-400 via-blue-400 to-purple-500 bg-clip-text text-transparent font-black animate-glow">No-Brainer</span></span>
+            <span className="inline-block  text-blue-400">NoBrain <span><PulseBrain /> </span></span>
+            <span className="block text-2xl md:text-4xl pt-2 text-white font-semibold">It's truly a <span className="bg-linear-to-r from-green-300 via-blue-300 to-purple-500 bg-clip-text text-transparent font-black animate-glow">No-Brainer</span></span>
           </h1>
           <div className="max-w-xl text-lg md:text-xl text-gray-300 mt-2 mb-1">
             Turn your thoughts into powerful automations <span className="font-bold">instantly</span>. Just describe your goal, drag-and-drop, and let our AI build the perfect workflow.
@@ -98,14 +113,17 @@ export default function LandingPage() {
           >
             Get Started Free
           </a>
-          <div className="text-xs text-gray-500 mt-2">No coding | No hassle | Pure AI power</div>
+          {/* <div className="text-xs text-gray-500 mt-2">No coding | No hassle | Pure AI power</div> */}
         </section>
         {/* Right section */}
         <aside className="w-full md:w-7/12 flex flex-col items-center justify-center h-full pt-8 md:pt-2 relative min-h-[370px]">
-          <SideProfileBrainMesh />
+          {/* <SideProfileBrainMesh /> */}
+                    <img src={brainsvg} alt="" className="w-7/12"/>
+
         </aside>
+        
       </main>
-      <footer className="py-4 text-center text-gray-600 text-xs opacity-60">
+      <footer className="py-4 text-center text-gray-600 text-xs opacity-60 relative z-10">
         &copy; {new Date().getFullYear()} NoBrain — Smarter Automation. Effortless AI.
       </footer>
       {/* Custom Animations */}

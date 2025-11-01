@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
-import { Label } from '../components/ui/label';
+// import { label } from '../components/ui/label';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -88,18 +88,18 @@ export default function AISummaryPage() {
           <div className="space-y-6">
             {/* Workflow Type Selection */}
             <div>
-              <Label htmlFor="workflow-type" className="text-gray-300 text-lg font-medium mb-4 block">
+              <label htmlFor="workflow-type" className="text-gray-300 text-lg font-medium mb-4 block">
                 Workflow Type
-              </Label>
+              </label>
               <select
                 id="workflow-type"
                 value={workflowType}
                 onChange={(e) => setWorkflowType(e.target.value)}
                 className="w-full bg-gray-800/50 border border-gray-600 text-white rounded-md px-3 py-2 text-lg focus:border-blue-500 focus:outline-none"
               >
-                <option value="">Select a workflow type</option>
+                <option value="" className='bg-gray-800' >Select a workflow type</option>
                 {workflowTypes.map((type) => (
-                  <option key={type.value} value={type.value}>
+                  <option className='bg-gray-800' key={type.value} value={type.value}>
                     {type.label}
                   </option>
                 ))}
@@ -111,9 +111,9 @@ export default function AISummaryPage() {
 
             {/* Workflow Description */}
             <div>
-              <Label htmlFor="summary" className="text-gray-300 text-lg font-medium mb-4 block">
+              <label htmlFor="summary" className="text-gray-300 text-lg font-medium mb-4 block">
                 Workflow Description
-              </Label>
+              </label>
               <Textarea
                 id="summary"
                 placeholder="e.g., 'I want to automatically post my blog content to LinkedIn every Monday at 9 AM, and also send a summary email to my team with the post link and engagement metrics.'"
@@ -134,7 +134,7 @@ export default function AISummaryPage() {
                 {examplePrompts.map((prompt, index) => (
                   <Card
                     key={index}
-                    className="p-4 cursor-pointer transition-all duration-200 hover:scale-105 border border-gray-600 hover:border-blue-500 hover:bg-gray-700/50"
+                    className="p-4 cursor-pointer transition-all bg-gray-800 duration-200 hover:scale-105 border border-gray-600 hover:border-blue-500 hover:bg-gray-700/50"
                     onClick={() => setSummary(prompt)}
                   >
                     <p className="text-gray-300 text-sm leading-relaxed">{prompt}</p>

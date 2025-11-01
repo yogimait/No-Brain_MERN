@@ -30,9 +30,9 @@ app.use(cookieParser());
 // Route declarations
 app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api/nlp', nlpRoutes);
-// app.use('/api/auth', authRoutes);
-// app.use("/api/workflows", workflowRoutes);
-// app.use("/api/executions", executionRoutes);
+app.use('/api/auth', authRoutes);
+app.use("/api/workflows", workflowRoutes);
+app.use("/api/executions", executionRoutes);
 // app.use("/api/users", userRoutes);
 
 // Health check route
@@ -48,5 +48,5 @@ app.get("/api/health", (req, res) => {
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-export { app };
+export default app;
 

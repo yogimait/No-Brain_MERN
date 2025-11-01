@@ -45,4 +45,4 @@ async function webScraperHandler(nodeConfig, inputs, context) {
   }
 }
 
-module.exports = webScraperHandler;
+export default webScraperHandler;

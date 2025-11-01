@@ -316,9 +316,9 @@ export default function Signup() {
       <BackgroundBeams /> 
       
       {/* ⭐ NEW LEFT SECTION: Logo/Header on Middle-Left (Absolute Positioning) ⭐ */}
-      <div className="absolute left-0 top-1/2 pb-40 -translate-y-1/2 p-8 z-20 pointer-events-none">
+{/*       <div className="absolute left-0 top-1/2 pb-40 -translate-y-1/2 p-8 z-20 pointer-events-none">
         <div className="text-left">
-          {/* The Header Content */}
+         
           <div className="flex items-center gap-4">
             <div className="relative">
               <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-green-500/25">
@@ -334,7 +334,7 @@ export default function Signup() {
             Effortless AI Workflow Automation.
           </p>
         </div>
-      </div>
+      </div> */}
 
 
       {/* Form Card Container (Centered by the parent div) */}

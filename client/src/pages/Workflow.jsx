@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
+import { workflowAPI, executionAPI } from '../services/api';
 
 export default function WorkflowEditorPage() {
   const navigate = useNavigate();
@@ -50,6 +51,21 @@ export default function WorkflowEditorPage() {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const location = useLocation();
+  const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load workflow if editing
+  useEffect(() => {
+    const workflowData = location.state?.workflowData;
+    const workflowId = location.state?.workflowId;
+    
+    if (workflowData && workflowData.graph) {
+      setCurrentWorkflowId(workflowId);
+      setWorkflowName(workflowData.name || '');
+      setNodes(workflowData.graph.nodes || []);
+      setEdges(workflowData.graph.edges || []);
+    }
+  }, [location.state]);
 
   // Handle drag
   const onPromptMouseDown = (e) => {
@@ -298,30 +314,201 @@ export default function WorkflowEditorPage() {
   };
 
   const runTest = async () => {
+    if (nodes.length === 0) {
+      alert('Please add at least one node to test.');
+      return;
+    }
+    
     setIsTesting(true);
     setShowTestResults(true);
     
-    // Simulate test execution
-    const mockTestResults = nodes.map((node, index) => ({
-      id: node.id,
-      name: node.data.label,
-      status: Math.random() > 0.2 ? 'success' : 'error', // 80% success rate
-      message: Math.random() > 0.2 
-        ? `Successfully connected to ${node.data.label}` 
-        : `Failed to connect to ${node.data.label}. Check credentials.`,
-      duration: Math.floor(Math.random() * 2000) + 500,
-      timestamp: new Date().toISOString()
-    }));
-
-    // Simulate async test execution
-    setTimeout(() => {
-      setTestResults(mockTestResults);
+    const startTime = Date.now();
+    
+    // Simulate test execution for each node
+    const testResults = [];
+    
+    for (const node of nodes) {
+      const nodeStartTime = Date.now();
+      // Simulate test delay
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+      
+      const success = Math.random() > 0.2; // 80% success rate
+      
+      testResults.push({
+        nodeId: node.id,
+        nodeName: node.data?.label || node.id,
+        status: success ? 'completed' : 'failed',
+        input: { nodeId: node.id, nodeType: node.data?.label },
+        output: success ? { success: true, message: `Successfully connected to ${node.data?.label || node.id}` } : null,
+        error: success ? null : `Failed to connect to ${node.data?.label || node.id}. Check credentials.`,
+        startTime: new Date(nodeStartTime).toISOString(),
+        endTime: new Date(Date.now()).toISOString(),
+      });
+    }
+    
+    const totalDuration = Date.now() - startTime;
+    
+    // Save test results to backend
+    try {
+      let workflowId = currentWorkflowId;
+      
+      // If no workflow exists yet, create one automatically for testing
+      if (!workflowId && nodes.length > 0) {
+        const workflowData = {
+          name: workflowName.trim() || `Test Workflow ${Date.now()}`,
+          graph: {
+            nodes: nodes,
+            edges: edges,
+          },
+          ownerId: localStorage.getItem('userId') || '507f1f77bcf86cd799439011',
+          description: `Auto-created for testing with ${nodes.length} nodes`,
+        };
+        
+        console.log('Creating workflow for testing:', workflowData);
+        const response = await workflowAPI.create(workflowData);
+        console.log('Workflow created:', response);
+        
+        // Handle ApiResponse format: response is { success, data, message }
+        // The workflow object is in response.data
+        if (response && response.success && response.data) {
+          workflowId = response.data._id;
+          setCurrentWorkflowId(workflowId);
+          if (!workflowName.trim()) {
+            setWorkflowName(workflowData.name);
+          }
+        } else {
+          throw new Error('Failed to create workflow: ' + JSON.stringify(response));
+        }
+      }
+      
+      if (workflowId) {
+        const executionData = {
+          workflowId: workflowId,
+          status: testResults.every(r => r.status === 'completed') ? 'completed' : 'failed',
+          nodeLogs: testResults,
+          duration: totalDuration,
+          error: testResults.some(r => r.error) ? 'Some nodes failed during testing' : null,
+        };
+        
+        console.log('Saving execution log:', executionData);
+        const executionResponse = await executionAPI.create(executionData);
+        console.log('Execution saved:', executionResponse);
+        
+        // Handle ApiResponse format
+        if (executionResponse && executionResponse.success) {
+          console.log('Execution saved successfully to logs');
+        } else {
+          console.warn('Execution may not have been saved properly:', executionResponse);
+        }
+      } else {
+        console.error('No workflowId available to save execution');
+        alert('Warning: Test completed but could not save to logs. Please save the workflow first.');
+      }
+      
+      // Convert to display format
+      const displayResults = testResults.map(r => ({
+        id: r.nodeId,
+        name: r.nodeName,
+        status: r.status === 'completed' ? 'success' : 'error',
+        message: r.output?.message || r.error || 'Unknown error',
+        duration: Date.parse(r.endTime) - Date.parse(r.startTime),
+        timestamp: r.startTime,
+      }));
+      
+      setTestResults(displayResults);
       setIsTesting(false);
-    }, 3000);
+      
+      // Show success message
+      alert('Test completed! Check the Logs page to see the results.');
+    } catch (error) {
+      console.error('Error saving test results:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      
+      // Still show results even if saving failed
+      const displayResults = testResults.map(r => ({
+        id: r.nodeId,
+        name: r.nodeName,
+        status: r.status === 'completed' ? 'success' : 'error',
+        message: r.output?.message || r.error || 'Unknown error',
+        duration: Date.parse(r.endTime) - Date.parse(r.startTime),
+        timestamp: r.startTime,
+      }));
+      setTestResults(displayResults);
+      setIsTesting(false);
+      
+      alert(`Test completed but failed to save to logs: ${error.message || 'Unknown error'}. Check console for details.`);
+    }
   };
 
-  const applyWorkflow = () => {
-    navigate('/workflow/complete');
+  const applyWorkflow = async () => {
+    if (nodes.length === 0) {
+      alert('Please add at least one node to the workflow.');
+      return;
+    }
+
+    if (!workflowName.trim()) {
+      alert('Please enter a workflow name.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const workflowData = {
+        name: workflowName.trim(),
+        graph: {
+          nodes: nodes,
+          edges: edges,
+        },
+        ownerId: localStorage.getItem('userId') || '507f1f77bcf86cd799439011', // Get from auth context in production
+        description: `Workflow with ${nodes.length} nodes`,
+      };
+
+      console.log('Saving workflow:', workflowData);
+      let savedWorkflow;
+      
+      if (currentWorkflowId) {
+        // Update existing workflow
+        console.log('Updating existing workflow:', currentWorkflowId);
+        const response = await workflowAPI.update(currentWorkflowId, workflowData);
+        console.log('Update response:', response);
+        
+        // Handle ApiResponse format: response is { success, data, message }
+        if (response && response.success && response.data) {
+          savedWorkflow = response.data;
+        } else {
+          throw new Error('Update failed: ' + JSON.stringify(response));
+        }
+      } else {
+        // Create new workflow
+        console.log('Creating new workflow');
+        const response = await workflowAPI.create(workflowData);
+        console.log('Create response:', response);
+        
+        // Handle ApiResponse format: response is { success, data, message }
+        if (response && response.success && response.data) {
+          savedWorkflow = response.data;
+          setCurrentWorkflowId(response.data._id);
+        } else {
+          throw new Error('Create failed: ' + JSON.stringify(response));
+        }
+      }
+
+      console.log('Workflow saved successfully:', savedWorkflow);
+      
+      // Show success message
+      alert('Workflow saved successfully! Redirecting to dashboard...');
+      
+      // Navigate to dashboard after successful save
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 500);
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      alert(`Failed to save workflow: ${error.message || 'Unknown error'}. Check console for details.`);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -388,10 +575,19 @@ export default function WorkflowEditorPage() {
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200"
                 onClick={applyWorkflow}
-                disabled={nodes.length === 0}
+                disabled={nodes.length === 0 || !workflowName.trim() || isSubmitting}
               >
-                Apply
-                <Rocket className="w-4 h-4 ml-2" />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Submit
+                    <Rocket className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </Button>
               <Button
                 size="sm"

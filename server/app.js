@@ -1,24 +1,45 @@
-import express from "express"
-import cors from "cors"
+import express from "express";
+import cors from "cors";
 import cookieParser from "cookie-parser";
+import workflowRoutes from "./src/routes/workflow.routes.js";
+import executionRoutes from "./src/routes/execution.routes.js";
+import orchestratorRoutes from './src/routes/orchestrator.routes.js';
+import authRoutes from "./src/routes/auth.routes.js";
+import errorHandler from "./src/middlewares/errorHandler.js";
 
- const app = express();
- app.use(cors({
-    origin:process.env.CORS_ORIGIN,
-    Credential:true
- }))
+const app = express();
 
- app.use(express.json({limit:"20kb"}))
- app.use(express.urlencoded({extended:true,limit:"20kb"}));
- app.use(express.static("public"));
- app.use(cookieParser())
+// CORS configuration
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    credentials: true
+}));
 
+// Body parsing middleware
+app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.static("public"));
+app.use(cookieParser());
 
-//routes import
-import userRoute from "../server/src/routes/user.routes.js"
+// Route declarations
+app.use('/api/orchestrator', orchestratorRoutes);
+app.use('/api/auth', authRoutes);
+app.use("/api/workflows", workflowRoutes);
+app.use("/api/executions", executionRoutes);
+app.use("/api/users", userRoutes);
 
-//routes declaration
-app.use("/api/v1/users",userRoute)
+// Health check route
+app.get("/api/health", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "NoBrain API is running",
+        version: "1.0.0",
+        timestamp: new Date().toISOString()
+    });
+});
 
+// Error handling middleware (must be last)
+app.use(errorHandler);
 
- export {app}
+export { app };
+

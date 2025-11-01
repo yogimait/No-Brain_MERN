@@ -11,6 +11,7 @@ import WorkflowsListPage from "./pages/WorkflowsList.jsx";
 
 
 
+
 function App() {
   return (
     <Router>
@@ -23,6 +24,7 @@ function App() {
         <Route path="/workflow/ai-prompt" element={<AIPromptPage />} />
         <Route path="/workflow/complete" element={<CompleteWorkflowPage />} />
         <Route path="/workflows-list" element={<WorkflowsListPage />} />
+
       </Routes>
     </Router>
   );

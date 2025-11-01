@@ -235,12 +235,12 @@ export default function Login() {
       <BackgroundBeams /> 
       
       {/* 3. Left Section: Logo/Header on Middle-Left (Absolute Positioning) */}
-      <div className="absolute left-0 top-1/2 pb-40 -translate-y-1/2 p-8 z-20 pointer-events-none">
+{/*       <div className="absolute left-0 top-1/2 pb-40 -translate-y-1/2 p-8 z-20 pointer-events-none">
         <div className="text-left">
           <div className="flex items-center gap-4">
             <div className="relative">
               <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-green-500/25">
-                {/* Placeholder for Brain component if not imported */}
+                
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white"><path d="M12 1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h9z"></path><path d="M14 10v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h9z"></path><path d="M14 18v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h9z"></path></svg>
               </div>
               <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-blue-600 rounded-2xl blur opacity-30 animate-pulse"></div>
@@ -253,7 +253,7 @@ export default function Login() {
             Effortless AI Workflow Automation.
           </p>
         </div>
-      </div>
+      </div> */}
 
 
       {/* 4. Right Section: Form Card (Centered by the parent div) */}

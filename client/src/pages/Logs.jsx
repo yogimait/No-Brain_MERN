@@ -10,44 +10,171 @@ import {
   RefreshCw,
   Brain,
   Play,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
-import { executionAPI } from '../services/api';
+import { executionAPI, workflowAPI } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
+import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 
 export default function LogsPage() {
   const navigate = useNavigate();
+  const { getUserId } = useAuth();
   const [executions, setExecutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedExecution, setSelectedExecution] = useState(null);
+  const [deletingExecution, setDeletingExecution] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [executionToDelete, setExecutionToDelete] = useState(null);
+  const [userWorkflows, setUserWorkflows] = useState([]);
+  const [workflowNodesMap, setWorkflowNodesMap] = useState({});
 
   useEffect(() => {
-    fetchExecutions();
+    fetchUserWorkflows();
   }, []);
+
+  useEffect(() => {
+    if (userWorkflows.length >= 0) { // Changed to >= 0 to fetch even if no workflows
+      fetchExecutions();
+    }
+  }, [userWorkflows]);
+
+  // Fetch user's workflows first to filter executions
+  const fetchUserWorkflows = async () => {
+    try {
+      const ownerId = getUserId();
+      if (!ownerId) {
+        toast.error("Please login to view logs");
+        navigate("/login");
+        return;
+      }
+
+      const response = await workflowAPI.getAll({ ownerId });
+      if (response && response.success && response.data) {
+        const workflows = Array.isArray(response.data) ? response.data : [];
+        setUserWorkflows(workflows);
+        
+        // Create a map of workflow nodes for easy lookup
+        const nodesMap = {};
+        workflows.forEach(workflow => {
+          if (workflow.graph && workflow.graph.nodes) {
+            workflow.graph.nodes.forEach(node => {
+              // Use node ID as key, store the full node data
+              nodesMap[node.id] = {
+                ...node,
+                workflowId: workflow._id,
+                workflowName: workflow.name
+              };
+            });
+          }
+        });
+        setWorkflowNodesMap(nodesMap);
+      } else {
+        setUserWorkflows([]);
+        setWorkflowNodesMap({});
+      }
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+      setUserWorkflows([]);
+      setWorkflowNodesMap({});
+    }
+  };
 
   const fetchExecutions = async () => {
     try {
       setLoading(true);
       const response = await executionAPI.getAll({ limit: 100 });
-      // Handle ApiResponse format: response is { success, data, message }
+      
       if (response && response.success && response.data) {
-        // response.data might be an object with executions array or directly an array
+        let allExecutions = [];
+        
+        // Handle different response formats
         if (response.data.executions && Array.isArray(response.data.executions)) {
-          setExecutions(response.data.executions);
+          allExecutions = response.data.executions;
         } else if (Array.isArray(response.data)) {
-          setExecutions(response.data);
-        } else {
-          setExecutions([]);
+          allExecutions = response.data;
         }
+
+        // Filter executions to only show those belonging to user's workflows
+        // Also include all executions (both passed and failed tests)
+        const userWorkflowIds = userWorkflows.map(w => w._id.toString());
+        const filteredExecutions = allExecutions.filter(execution => {
+          const workflowId = execution.workflowId?._id || execution.workflowId;
+          if (!workflowId) return false;
+          
+          // Check if execution belongs to user's workflow
+          const workflowIdStr = workflowId.toString();
+          return userWorkflowIds.includes(workflowIdStr);
+        });
+
+        // Sort by most recent first
+        filteredExecutions.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.startedAt || 0);
+          const dateB = new Date(b.createdAt || b.startedAt || 0);
+          return dateB - dateA;
+        });
+
+        setExecutions(filteredExecutions);
       } else {
         setExecutions([]);
       }
     } catch (error) {
       console.error('Error fetching executions:', error);
+      toast.error("Failed to load execution logs");
       setExecutions([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteExecution = (execution) => {
+    setExecutionToDelete(execution);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteExecution = async () => {
+    if (!executionToDelete) {
+      setShowDeleteDialog(false);
+      return;
+    }
+    
+    try {
+      setDeletingExecution(executionToDelete._id);
+      
+      // Delete by runId
+      const runId = executionToDelete.runId;
+      if (!runId) {
+        toast.error('Cannot delete: Missing runId');
+        setShowDeleteDialog(false);
+        setExecutionToDelete(null);
+        return;
+      }
+
+      const response = await executionAPI.delete(runId);
+      
+      if (response && response.success) {
+        toast.success('Execution log deleted successfully');
+        // Refresh the list
+        await fetchExecutions();
+        if (selectedExecution?._id === executionToDelete._id) {
+          setSelectedExecution(null);
+        }
+        // Close dialog after successful deletion
+        setShowDeleteDialog(false);
+      } else {
+        throw new Error(response?.message || 'Delete failed');
+      }
+    } catch (error) {
+      console.error('Error deleting execution:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete execution log';
+      toast.error(errorMessage);
+      // Keep dialog open on error so user can retry
+    } finally {
+      setDeletingExecution(null);
+      setExecutionToDelete(null);
     }
   };
 
@@ -58,9 +185,9 @@ export default function LogsPage() {
       case 'failed':
         return <XCircle className="w-5 h-5 text-red-400" />;
       case 'running':
-        return <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />;
       case 'pending':
-        return <Clock className="w-5 h-5 text-yellow-400" />;
+        return <Clock className="w-5 h-5 text-gray-500" />;
       case 'cancelled':
         return <AlertCircle className="w-5 h-5 text-gray-400" />;
       default:
@@ -75,13 +202,13 @@ export default function LogsPage() {
       case 'failed':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'running':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        return 'bg-gray-800/50 text-gray-400 border-gray-700/50';
       case 'pending':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+        return 'bg-gray-800/50 text-gray-500 border-gray-700/50';
       case 'cancelled':
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        return 'bg-gray-800/50 text-gray-500 border-gray-700/50';
       default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        return 'bg-gray-800/50 text-gray-400 border-gray-700/50';
     }
   };
 
@@ -105,9 +232,9 @@ export default function LogsPage() {
       case 'failed':
         return <XCircle className="w-4 h-4 text-red-400" />;
       case 'running':
-        return <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />;
+        return <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />;
       case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-400" />;
+        return <Clock className="w-4 h-4 text-gray-500" />;
       case 'skipped':
         return <AlertCircle className="w-4 h-4 text-gray-400" />;
       default:
@@ -121,31 +248,31 @@ export default function LogsPage() {
       <header className="bg-gray-900/60 backdrop-blur-sm border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <FileText className="w-6 h-6 text-gray-400" />
+              <span className="text-2xl font-bold text-gray-300">Execution Logs</span>
+            </div>
+            <div className="flex items-center gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-gray-300 border-gray-600 hover:border-blue-500 hover:text-blue-300"
+                className="text-gray-300 hover:text-gray-200 bg-transparent hover:bg-gray-800/30 p-0"
                 onClick={() => navigate('/dashboard')}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Dashboard
               </Button>
-              <div className="flex items-center gap-3">
-                <FileText className="w-6 h-6 text-blue-400" />
-                <span className="text-2xl font-bold text-blue-300">Execution Logs</span>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-300 hover:text-gray-200 bg-transparent hover:bg-gray-800/30 p-0"
+                onClick={fetchExecutions}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-gray-300 border-gray-600 hover:border-blue-500 hover:text-blue-300"
-              onClick={fetchExecutions}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
           </div>
         </div>
       </header>
@@ -154,7 +281,7 @@ export default function LogsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
             <span className="ml-3 text-gray-400">Loading logs...</span>
           </div>
         ) : executions.length === 0 ? (
@@ -169,7 +296,7 @@ export default function LogsPage() {
               Test your workflows to see execution logs here. Results will appear after running tests.
             </p>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-gray-700 hover:bg-gray-600 text-white"
               onClick={() => navigate('/workflow')}
             >
               <Play className="w-4 h-4 mr-2" />
@@ -177,26 +304,28 @@ export default function LogsPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Executions List */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-3 space-y-4">
               <h2 className="text-xl font-semibold text-white mb-4">All Executions</h2>
               {executions.map((execution) => (
                 <Card
                   key={execution._id}
-                  className={`p-6 bg-gray-900/40 backdrop-blur-sm border border-gray-700/50 hover:border-blue-500/50 transition-all cursor-pointer ${
-                    selectedExecution?._id === execution._id ? 'border-blue-500' : ''
+                  className={`p-6 bg-gray-900/40 backdrop-blur-sm border border-gray-700/50 hover:border-gray-600/50 transition-all ${
+                    selectedExecution?._id === execution._id ? 'border-gray-600' : ''
                   }`}
-                  onClick={() => setSelectedExecution(execution)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => setSelectedExecution(execution)}
+                    >
                       <div className="flex items-center gap-3 mb-3">
                         {getStatusIcon(execution.status)}
                         <div>
                           <h3 className="text-white font-semibold">Run ID: {execution.runId}</h3>
                           <p className="text-sm text-gray-400">
-                            Workflow ID: {execution.workflowId?._id || execution.workflowId || 'N/A'}
+                            Workflow: {execution.workflowId?.name || execution.workflowId?._id || execution.workflowId || 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -220,7 +349,11 @@ export default function LogsPage() {
                             {execution.nodeLogs.slice(0, 5).map((nodeLog, idx) => (
                               <div key={idx} className="flex items-center gap-1">
                                 {getNodeStatusIcon(nodeLog.status)}
-                                <span className="text-xs text-gray-500">{nodeLog.nodeName}</span>
+                                <span className={`text-xs ${
+                                  nodeLog.status === 'completed' ? 'text-green-400' : 
+                                  nodeLog.status === 'failed' ? 'text-red-400' : 
+                                  'text-gray-500'
+                                }`}>{nodeLog.nodeName}</span>
                               </div>
                             ))}
                             {execution.nodeLogs.length > 5 && (
@@ -232,16 +365,33 @@ export default function LogsPage() {
                         </div>
                       )}
                     </div>
+                    {/* Delete Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-300 hover:text-gray-200 bg-transparent hover:bg-gray-800/30 transition-colors shrink-0 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteExecution(execution);
+                      }}
+                      disabled={deletingExecution === execution._id}
+                    >
+                      {deletingExecution === execution._id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </Card>
               ))}
             </div>
 
             {/* Execution Details Sidebar */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-2">
               <h2 className="text-xl font-semibold text-white mb-4">Details</h2>
               {selectedExecution ? (
-                <Card className="p-6 bg-gray-900/40 backdrop-blur-sm border border-gray-700/50">
+                <Card className="p-6 bg-gray-900/40 backdrop-blur-sm border border-gray-700/50 max-h-[calc(100vh-12rem)] overflow-y-auto">
                   <div className="space-y-6">
                     {/* Status */}
                     <div>
@@ -279,8 +429,8 @@ export default function LogsPage() {
                     {/* Error */}
                     {selectedExecution.error && (
                       <div>
-                        <h3 className="text-sm font-medium text-gray-400 mb-2">Error</h3>
-                        <p className="text-red-400 text-sm">{selectedExecution.error}</p>
+                        <h3 className="text-sm font-medium text-red-400 mb-2">Error</h3>
+                        <p className="text-red-300 text-sm bg-red-500/10 p-2 rounded">{selectedExecution.error}</p>
                       </div>
                     )}
 
@@ -290,47 +440,132 @@ export default function LogsPage() {
                         <h3 className="text-sm font-medium text-gray-400 mb-3">
                           Node Logs ({selectedExecution.nodeLogs.length})
                         </h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {selectedExecution.nodeLogs.map((nodeLog, idx) => (
-                            <div
-                              key={idx}
-                              className="p-3 bg-gray-800/50 rounded-lg border border-gray-700"
-                            >
-                              <div className="flex items-start gap-2 mb-2">
-                                {getNodeStatusIcon(nodeLog.status)}
-                                <div className="flex-1">
-                                  <p className="text-white font-medium text-sm">
-                                    {nodeLog.nodeName || nodeLog.nodeId}
-                                  </p>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    Status: {nodeLog.status}
-                                  </p>
+                        <div className="space-y-4">
+                          {selectedExecution.nodeLogs.map((nodeLog, idx) => {
+                            // Find the corresponding node from workflow to get its configuration
+                            const nodeId = nodeLog.nodeId;
+                            const workflowNode = workflowNodesMap[nodeId];
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50"
+                              >
+                                <div className="flex items-start gap-2 mb-3">
+                                  {getNodeStatusIcon(nodeLog.status)}
+                                  <div className="flex-1">
+                                    <p className="text-white font-medium text-sm">
+                                      {nodeLog.nodeName || nodeLog.nodeId}
+                                    </p>
+                                    <p className={`text-xs mt-1 ${
+                                      nodeLog.status === 'completed' ? 'text-green-400' : 
+                                      nodeLog.status === 'failed' ? 'text-red-400' : 
+                                      'text-gray-400'
+                                    }`}>
+                                      Status: {nodeLog.status}
+                                    </p>
+                                  </div>
                                 </div>
+
+                                {/* Node Configuration - from execution log or workflow */}
+                                {(nodeLog.nodeConfig || (workflowNode && workflowNode.data)) && (
+                                  <div className="mt-3 pt-3 border-t border-gray-700/50">
+                                    <p className="text-xs font-semibold text-gray-300 mb-2">Node Configuration:</p>
+                                    <div className="space-y-2 text-xs">
+                                      {/* Use nodeConfig from execution log if available, otherwise use workflow node data */}
+                                      {(() => {
+                                        const config = nodeLog.nodeConfig || (workflowNode && workflowNode.data);
+                                        if (!config) return null;
+                                        
+                                        return (
+                                          <>
+                                            {config.credentials && Object.keys(config.credentials).length > 0 && (
+                                              <div>
+                                                <p className="text-gray-400 mb-1">Credentials:</p>
+                                                <div className="bg-gray-900/50 p-2 rounded text-gray-300">
+                                                  {Object.entries(config.credentials).map(([key, value]) => (
+                                                    <div key={key} className="mb-1">
+                                                      <span className="text-gray-500">{key}:</span>{' '}
+                                                      <span className="text-gray-300">
+                                                        {typeof value === 'string' && value.length > 50 
+                                                          ? value.substring(0, 50) + '...' 
+                                                          : String(value)}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                            {config.aiModel && (
+                                              <div>
+                                                <span className="text-gray-400">AI Model:</span>{' '}
+                                                <span className="text-gray-300">{config.aiModel}</span>
+                                              </div>
+                                            )}
+                                            {config.aiTemperature && (
+                                              <div>
+                                                <span className="text-gray-400">Temperature:</span>{' '}
+                                                <span className="text-gray-300">{config.aiTemperature}</span>
+                                              </div>
+                                            )}
+                                            {config.aiMemory && (
+                                              <div>
+                                                <span className="text-gray-400">Memory:</span>{' '}
+                                                <span className="text-gray-300">{config.aiMemory}</span>
+                                              </div>
+                                            )}
+                                            {config.aiMemorySize && (
+                                              <div>
+                                                <span className="text-gray-400">Memory Size:</span>{' '}
+                                                <span className="text-gray-300">{config.aiMemorySize}</span>
+                                              </div>
+                                            )}
+                                            {config.storageEnabled !== undefined && (
+                                              <div>
+                                                <span className="text-gray-400">Storage Enabled:</span>{' '}
+                                                <span className="text-gray-300">{config.storageEnabled ? 'Yes' : 'No'}</span>
+                                              </div>
+                                            )}
+                                            {config.config && Object.keys(config.config).length > 0 && (
+                                              <div>
+                                                <p className="text-gray-400 mb-1">Additional Config:</p>
+                                                <pre className="text-xs bg-gray-900/50 p-2 rounded text-gray-300 overflow-x-auto">
+                                                  {JSON.stringify(config.config, null, 2)}
+                                                </pre>
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {nodeLog.input && (
+                                  <div className="mt-3 pt-3 border-t border-gray-700/50">
+                                    <p className="text-xs text-gray-400 mb-1 font-semibold">Execution Input:</p>
+                                    <pre className="text-xs bg-gray-900/50 p-2 rounded text-gray-300 overflow-x-auto">
+                                      {JSON.stringify(nodeLog.input, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {nodeLog.output && (
+                                  <div className="mt-3 pt-3 border-t border-gray-700/50">
+                                    <p className="text-xs text-gray-400 mb-1 font-semibold">Execution Output:</p>
+                                    <pre className="text-xs bg-gray-900/50 p-2 rounded text-gray-300 overflow-x-auto">
+                                      {JSON.stringify(nodeLog.output, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {nodeLog.error && (
+                                  <div className="mt-3 pt-3 border-t border-red-500/30">
+                                    <p className="text-xs text-red-400 mb-1 font-semibold">Error:</p>
+                                    <p className="text-xs text-red-300 bg-red-500/10 p-2 rounded">{nodeLog.error}</p>
+                                  </div>
+                                )}
                               </div>
-                              {nodeLog.input && (
-                                <div className="mt-2">
-                                  <p className="text-xs text-gray-400 mb-1">Input:</p>
-                                  <pre className="text-xs bg-gray-900/50 p-2 rounded text-gray-300 overflow-x-auto">
-                                    {JSON.stringify(nodeLog.input, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                              {nodeLog.output && (
-                                <div className="mt-2">
-                                  <p className="text-xs text-gray-400 mb-1">Output:</p>
-                                  <pre className="text-xs bg-gray-900/50 p-2 rounded text-gray-300 overflow-x-auto">
-                                    {JSON.stringify(nodeLog.output, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                              {nodeLog.error && (
-                                <div className="mt-2">
-                                  <p className="text-xs text-red-400 mb-1">Error:</p>
-                                  <p className="text-xs text-red-300">{nodeLog.error}</p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -348,6 +583,21 @@ export default function LogsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setExecutionToDelete(null);
+        }}
+        onConfirm={confirmDeleteExecution}
+        title="Delete Execution Log"
+        message="Are you sure you want to delete this execution log? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

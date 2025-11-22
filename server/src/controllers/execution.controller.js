@@ -161,11 +161,27 @@ const getAllExecutions = asyncHandler(async (req, res) => {
   );
 });
 
+// Delete an execution by runId
+const deleteExecution = asyncHandler(async (req, res) => {
+  const { runId } = req.params;
+
+  const execution = await Execution.findOneAndDelete({ runId });
+  
+  if (!execution) {
+    throw new ApiError(404, "Execution not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "Execution deleted successfully")
+  );
+});
+
 export {
   createExecution,
   getExecutionsByWorkflow,
   getExecutionByRunId,
   updateExecution,
   getAllExecutions,
+  deleteExecution,
 };
 

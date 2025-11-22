@@ -7,6 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies for all requests
 });
 
 // Add response interceptor to handle errors
@@ -16,17 +17,21 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('API Error:', error);
-    if (error.response) {
-      // Server responded with error status
-      console.error('Error Response:', error.response.data);
-    } else if (error.request) {
-      // Request was made but no response received
-      console.error('No response received:', error.request);
-      error.message = 'No response from server. Make sure the backend is running.';
-    } else {
-      // Something else happened
-      console.error('Error setting up request:', error.message);
+    // Don't log 401 errors as they're expected when session expires
+    // AuthContext handles these gracefully
+    if (error.response?.status !== 401) {
+      console.error('API Error:', error);
+      if (error.response) {
+        // Server responded with error status
+        console.error('Error Response:', error.response.data);
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error('No response received:', error.request);
+        error.message = 'No response from server. Make sure the backend is running.';
+      } else {
+        // Something else happened
+        console.error('Error setting up request:', error.message);
+      }
     }
     return Promise.reject(error);
   }
@@ -100,6 +105,55 @@ export const executionAPI = {
   // Update execution
   update: async (runId, executionData) => {
     const response = await api.put(`/executions/${runId}`, executionData);
+    return response.data;
+  },
+
+  // Delete execution by runId
+  delete: async (runId) => {
+    const response = await api.delete(`/executions/${runId}`);
+    return response.data;
+  },
+};
+
+// Auth APIs
+export const authAPI = {
+  // Register user
+  register: async (userData) => {
+    const response = await api.post('/auth/register', userData, {
+      withCredentials: true // Important for cookies
+    });
+    return response.data;
+  },
+
+  // Login user
+  login: async (credentials) => {
+    const response = await api.post('/auth/login', credentials, {
+      withCredentials: true // Important for cookies
+    });
+    return response.data;
+  },
+
+  // Logout user
+  logout: async () => {
+    const response = await api.post('/auth/logout', {}, {
+      withCredentials: true
+    });
+    return response.data;
+  },
+
+  // Get current user
+  getCurrentUser: async () => {
+    const response = await api.get('/auth/me', {
+      withCredentials: true
+    });
+    return response.data;
+  },
+
+  // Refresh access token
+  refreshToken: async () => {
+    const response = await api.post('/auth/refresh-token', {}, {
+      withCredentials: true
+    });
     return response.data;
   },
 };

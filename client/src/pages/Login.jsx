@@ -196,36 +196,55 @@
 // }
 
 // --- Login.jsx Template ---
-import { Link, useNavigate } from "react-router-dom";
-import { Lock, Eye, EyeOff, Mail } from "lucide-react"; // Note: UserPlus and User removed
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Lock, Eye, EyeOff, Mail } from "lucide-react";
 import { useState } from "react";
-import { Label } from "../components/ui/Label";
+import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/Input";
-import { BackgroundBeams } from "../components/ui/background-beams"; 
-// Assuming the Brain component and styles are handled by the new HTML structure
+import { BackgroundBeams } from "../components/ui/background-beams";
+import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function Login() {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Add your LOGIN logic here
-    console.log("Login data:", formData);
-    navigate("/dashboard");
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setIsSubmitting(true);
+      
+      await login(formData.email, formData.password);
+      
+      toast.success("Logged in successfully!");
+      
+      // Redirect to the page user was trying to access, or dashboard
+      const from = location.state?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error(error.message || "Failed to login");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     // 1. Full Screen Centering Container
@@ -264,9 +283,9 @@ export default function Login() {
           {/* Card Header */}
           <div className="relative p-4 border-black bg-black border-gray-800">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                <Lock className="w-5 h-5 text-blue-400" />
-              </div>
+              <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <Lock className="w-5 h-5 text-gray-400" />
+              </div>
               <h2 className="text-2xl font-bold text-white">Sign In</h2>
             </div>
             <p className="text-gray-400">Welcome back to your dashboard</p>
@@ -292,7 +311,7 @@ export default function Login() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
                   required
                 />
               </div>
@@ -313,7 +332,7 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Your password"
-                  className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                  className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
                   required
                 />
                 <button
@@ -327,13 +346,14 @@ export default function Login() {
             </div>
             
             {/* Login Button */}
-            <button
-              type="submit"
-              className="w-full py-2 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group"
-            >
-              <Lock className="w-5 h-5 transition-transform group-hover:scale-110" />
-              Sign In
-            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl shadow-lg shadow-gray-900/25 hover:shadow-gray-900/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Lock className="w-5 h-5 transition-transform group-hover:scale-110" />
+              {isSubmitting ? "Signing In..." : "Sign In"}
+            </button>
           </form>
 
           {/* Footer */}
@@ -356,15 +376,15 @@ export default function Login() {
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 3s ease-in-out infinite;
-        }
-      `}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }

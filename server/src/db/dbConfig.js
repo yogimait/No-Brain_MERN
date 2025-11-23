@@ -3,6 +3,10 @@ import { DB_NAME } from "../../constant.js";
 
 const connectDB = async () => {
   try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI environment variable is not set. Please add it to your .env file.");
+    }
+
     let mongoUri = process.env.MONGODB_URI.trim();
     
     // Remove trailing slash if present
@@ -23,12 +27,13 @@ const connectDB = async () => {
 
     const connectionInstance = await mongoose.connect(mongoUri);
     console.log(
-      `DATABASE CONNECTED SUCCESSFULLY: ${connectionInstance.connection.name}`
+      `✅ DATABASE CONNECTED SUCCESSFULLY: ${connectionInstance.connection.name}`
     );
   } catch (error) {
-    console.log(`MONGODB_URI: ${process.env.MONGODB_URI}`);
-    console.log(`DB_NAME: ${DB_NAME}`);
-    console.log("DATABASE CONNECTION FAILED", error);
+    console.error(`❌ DATABASE CONNECTION FAILED`);
+    console.error(`MONGODB_URI: ${process.env.MONGODB_URI ? '***set***' : 'NOT SET'}`);
+    console.error(`DB_NAME: ${DB_NAME}`);
+    console.error("Error:", error.message);
     process.exit(1);
   }
 };

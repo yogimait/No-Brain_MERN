@@ -3,7 +3,7 @@
 // import { Link, useNavigate } from "react-router-dom";
 // import { Lock, UserPlus, Brain, Eye, EyeOff, Mail, User } from "lucide-react";
 // import { useState } from "react";
-// import { Label } from "../components/ui/Label";
+// import { Label } from "../components/ui/label";
 // import { Input } from "../components/ui/Input";
 // // 1. Import BackgroundBeams component
 // import { BackgroundBeams } from "../components/ui/background-beams"; 
@@ -96,7 +96,7 @@
 //                     value={formData.firstName}
 //                     onChange={handleChange}
 //                     placeholder="First name"
-//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
 //                     required
 //                   />
 //                 </div>
@@ -115,7 +115,7 @@
 //                     value={formData.lastName}
 //                     onChange={handleChange}
 //                     placeholder="Last name"
-//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
 //                     required
 //                   />
 //                 </div>
@@ -137,7 +137,7 @@
 //                   value={formData.email}
 //                   onChange={handleChange}
 //                   placeholder="Enter your email"
-//                   className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+//                   className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
 //                   required
 //                 />
 //               </div>
@@ -275,38 +275,72 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Lock, UserPlus, Brain, Eye, EyeOff, Mail, User } from "lucide-react";
 import { useState } from "react";
-import { Label } from "../components/ui/Label";
+import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/Input";
-// 1. Import BackgroundBeams component
-import { BackgroundBeams } from "../components/ui/background-beams"; 
+import { BackgroundBeams } from "../components/ui/background-beams";
+import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner"; 
 
 export default function Signup() {
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    agreeToTerms: false
-  });
+  const navigate = useNavigate();
+  const { register } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    agreeToTerms: false
+  });
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value
-    });
-  };
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value
+    });
+  };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Add your signup logic here
-    console.log("Signup data:", formData);
-    navigate("/dashboard");
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    if (!formData.agreeToTerms) {
+      toast.error("Please agree to the terms and conditions");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      // Prepare data for backend (combine firstName and lastName into name)
+      const name = `${formData.firstName} ${formData.lastName}`;
+      
+      await register(formData.email, name, formData.password);
+      
+      toast.success("Account created successfully!");
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast.error(error.message || "Failed to create account");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     // ⭐ UPDATED: Use flex items-center justify-center to center the main content/form
@@ -346,9 +380,9 @@ export default function Signup() {
           <div className="relative p-4 border-black bg-black border-gray-800">
                 {/* RESTORED: Original simple card header design */}
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-                <UserPlus className="w-5 h-5 text-green-400" />
-              </div>
+              <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <UserPlus className="w-5 h-5 text-gray-400" />
+              </div>
               <h2 className="text-2xl font-bold text-white">Create Account</h2>
             </div>
             <p className="text-gray-400">Start your journey with us</p>
@@ -375,7 +409,7 @@ export default function Signup() {
                     value={formData.firstName}
                     onChange={handleChange}
                     placeholder="First name"
-                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
                     required
                   />
                 </div>
@@ -394,7 +428,7 @@ export default function Signup() {
                     value={formData.lastName}
                     onChange={handleChange}
                     placeholder="Last name"
-                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
                     required
                   />
                 </div>
@@ -416,7 +450,7 @@ export default function Signup() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
                   required
                 />
               </div>
@@ -486,30 +520,31 @@ export default function Signup() {
                   name="agreeToTerms"
                   checked={formData.agreeToTerms}
                   onChange={handleChange}
-                  className="rounded bg-black border-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-900" 
+                  className="rounded bg-black border-gray-700 text-gray-400 focus:ring-gray-500 focus:ring-offset-gray-900" 
                   required
                 />
                 <span className="ml-2 mt-3 text-gray-400 text-sm">
                   I agree to the{" "}
-                  <Link to="/terms" className="text-green-400 hover:text-green-300 transition-colors">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link to="/privacy" className="text-green-400 hover:text-green-300 transition-colors">
-                    Privacy Policy
-                  </Link>
+                  <Link to="/terms" className="text-gray-300 hover:text-gray-200 transition-colors">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link to="/privacy" className="text-gray-300 hover:text-gray-200 transition-colors">
+                    Privacy Policy
+                  </Link>
                 </span>
               </Label>
             </div>
 
-            {/* Signup Button */}
-            <button
-              type="submit"
-              className="w-full py-2 px-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group"
-            >
-              <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
-              Create Account
-            </button>
+            {/* Signup Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl shadow-lg shadow-gray-900/25 hover:shadow-gray-900/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
+              {isSubmitting ? "Creating Account..." : "Create Account"}
+            </button>
           </form>
 
           {/* Footer */}
@@ -534,15 +569,15 @@ export default function Signup() {
         
       </div>
 
-      <style jsx>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 3s ease-in-out infinite;
-        }
-      `}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }

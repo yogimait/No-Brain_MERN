@@ -5,6 +5,7 @@ import {
   getExecutionByRunId,
   updateExecution,
   getAllExecutions,
+  deleteExecution,
 } from "../controllers/execution.controller.js";
 
 const router = express.Router();
@@ -18,11 +19,14 @@ router.get("/", getAllExecutions);
 // Get all executions for a specific workflow
 router.get("/workflow/:workflowId", getExecutionsByWorkflow);
 
-// Get a single execution by runId
-router.get("/:runId", getExecutionByRunId);
-
 // Update an execution
 router.put("/:runId", updateExecution);
+
+// Delete an execution by runId (must come before GET /:runId to avoid route conflicts)
+router.delete("/:runId", deleteExecution);
+
+// Get a single execution by runId (must come last to avoid conflicts)
+router.get("/:runId", getExecutionByRunId);
 
 export default router;
 

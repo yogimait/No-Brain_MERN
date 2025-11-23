@@ -29,6 +29,10 @@ const nodeLogSchema = new mongoose.Schema({
   endTime: {
     type: Date,
   },
+  nodeConfig: {
+    type: mongoose.Schema.Types.Mixed,
+    // Stores node configuration (credentials, AI model settings, etc.) saved from canvas
+  },
 });
 
 const executionSchema = new mongoose.Schema(

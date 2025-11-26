@@ -120,38 +120,33 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies for all requests
 });
 
-// --- API Error Handler ---
-// This function helps process errors from API calls
-const handleApiError = (error) => {
-  if (error.response) {
-    // The request was made and the server responded with a status code
-    // that falls out of the range of 2xx
-    console.error('API Error Response:', error.response.data);
-    console.error('API Error Status:', error.response.status);
-    // Return the server's error message if it exists
-    return Promise.reject(error.response.data || { message: 'An unknown server error occurred.' });
-  } else if (error.request) {
-    // The request was made but no response was received
-    console.error('API No Response:', error.request);
-    return Promise.reject({ message: 'Network Error: Could not connect to the server.' });
-  } else {
-    // Something happened in setting up the request that triggered an Error
-    console.error('API Request Setup Error:', error.message);
-    return Promise.reject({ message: `Request setup error: ${error.message}` });
+// Add response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => {
+    // If response data is already the API response format, return it
+    return response;
+  },
+  (error) => {
+    console.error('API Error:', error);
+    if (error.response) {
+      // Server responded with error status
+      console.error('Error Response:', error.response.data);
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error('No response received:', error.request);
+      error.message = 'No response from server. Make sure the backend is running.';
+    } else {
+      // Something else happened
+      console.error('Error setting up request:', error.message);
+    }
+    return Promise.reject(error);
   }
-};
-
-// Add interceptors to handle responses and errors centrally
-apiClient.interceptors.response.use(
-  (response) => response, // Directly return successful responses
-  (error) => handleApiError(error) // Pass errors to the handler
 );
 
-
-// --- Workflow API ---
-// Manages saving, loading, and updating workflow designs
+// Workflow APIs
 export const workflowAPI = {
   /**
    * Create a new workflow.
@@ -232,5 +227,20 @@ export const executionAPI = {
     // We keep it just in case, but it's bad practice.
     const response = await apiClient.post('/execution', executionData);
     return response.data;
-  }
+  },
+
+  // Get execution by runId
+  getByRunId: async (runId) => {
+    const response = await api.get(`/executions/${runId}`);
+    return response.data;
+  },
+
+  // Update execution
+  update: async (runId, executionData) => {
+    const response = await api.put(`/executions/${runId}`, executionData);
+    return response.data;
+  },
 };
+
+export default api;
+

@@ -13,16 +13,17 @@ import ReactFlow, {
   Panel
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card } from '../components/ui/card';
 import { Plug, Rows, Edit, MessageSquare, Bot, Trash2, Text, Mail, X } from 'lucide-react';
+import { ConfirmationDialog } from './ui/confirmation-dialog';
 
 // --- Custom Node Component ---
 const CustomNode = ({ id, data, selected = false }) => {
-  const baseBorderStyle = '1px solid rgba(59, 130, 246, 0.5)';
-  const selectedBorderStyle = '1px solid rgba(59, 130, 246, 1)';
-  const baseShadowStyle = '0 0 10px rgba(59, 130, 246, 0.4), inset 0 0 5px rgba(59, 130, 246, 0.2)';
-  const selectedShadowStyle = '0 0 15px rgba(59, 130, 246, 0.7), inset 0 0 8px rgba(59, 130, 246, 0.4)';
+  const baseBorderStyle = '1px solid rgba(59, 130, 246, 0.5)'; // Blue border
+  const selectedBorderStyle = '1px solid rgba(59, 130, 246, 0.9)'; // Brighter blue when selected
+  const baseShadowStyle = '0 0 10px rgba(59, 130, 246, 0.3), inset 0 0 5px rgba(59, 130, 246, 0.2)';
+  const selectedShadowStyle = '0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 8px rgba(59, 130, 246, 0.3)';
 
   const handleDelete = (event) => {
     event.stopPropagation(); 
@@ -43,8 +44,8 @@ const CustomNode = ({ id, data, selected = false }) => {
         boxShadow: selected ? selectedShadowStyle : baseShadowStyle,
       }}
     >
-      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-purple-500" />
-      <div className="p-1.5 bg-gray-700/50 rounded-md text-blue-300">
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-pink-500" />
+      <div className="p-1.5 bg-gray-700/50 rounded-md text-gray-400">
         {data.icon}
       </div>
       <span className="font-semibold text-gray-200">{data.label}</span>
@@ -69,6 +70,7 @@ const nodeTypes = {
 
 export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNodeClick }) {
   const reactFlowInstance = useReactFlow();
+  const [showClearDialog, setShowClearDialog] = useState(false);
   
   const onNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
   const onEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
@@ -83,12 +85,15 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
   }, [setNodes, setEdges]);
 
   // 🆕 New Handler: Function to clear all nodes and edges
-  const handleClearAll = useCallback(() => {
-    if (window.confirm("Are you sure you want to clear the entire canvas? This action cannot be undone.")) {
-      setNodes([]);
-      setEdges([]);
-    }
-  }, [setNodes, setEdges]);
+  const handleClearAll = useCallback(() => {
+    setShowClearDialog(true);
+  }, []);
+
+  const confirmClearAll = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setShowClearDialog(false);
+  }, [setNodes, setEdges]);
 
   const onDragOver = useCallback((event) => {
     event.preventDefault();
@@ -130,42 +135,57 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
   }, [reactFlowInstance, setNodes, onDeleteNode]);
 
   // Also add the onDelete function to existing nodes when they're selected
-  const updatedNodes = nodes.map(node => ({
+  // Use useMemo to prevent recreating the array on every render
+  const updatedNodes = useMemo(() => nodes.map(node => ({
     ...node,
     data: {
       ...node.data,
       onDelete: onDeleteNode
     }
-  }));
+  })), [nodes, onDeleteNode]);
 
   return (
-    <div className="reactflow-wrapper flex-1 h-full" onDrop={onDrop} onDragOver={onDragOver}>
-      <Panel position="top-right" className="!p-0 !m-0">
-          <button
-            onClick={handleClearAll} // <-- This calls the new function
-            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-blue-900/60 rounded-lg shadow-lg hover:bg-blue-700 transition-colors mr-14 mt-2"
-            title="Clear all nodes and edges from the canvas"
-          >
-            <Trash2 size={16} />
-            <span>Clear All</span>
-          </button>
-        </Panel>
-      <ReactFlow
-        nodes={updatedNodes} // Use updated nodes with onDelete function
-        edges={edges}
-        onConnect={onConnect}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClickHandler}
-        nodeTypes={nodeTypes}
-        fitView
-        deleteKeyCode={['Delete', 'Backspace']}
-      >
-        <Background gap={16} size={1} className="!bg-gray-950" />
-        <MiniMap nodeColor="#3B82F6" maskColor="rgba(15, 23, 42, 0.7)" />
-        <Controls className="[&_button]:bg-gray-800 [&_button]:border-gray-700 [&_button:hover]:bg-blue-600" />
-      </ReactFlow>
-    </div>
+    <>
+      <div className="reactflow-wrapper flex-1 h-full" onDrop={onDrop} onDragOver={onDragOver}>
+        <Panel position="top-right" className="!p-0 !m-0">
+          <button
+            onClick={handleClearAll}
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-gray-800/80 hover:bg-gray-700 rounded-lg shadow-lg transition-colors mr-14 mt-2 border border-gray-700/50"
+            title="Clear all nodes and edges from the canvas"
+          >
+            <Trash2 size={16} />
+            <span>Clear All</span>
+          </button>
+        </Panel>
+        <ReactFlow
+          nodes={updatedNodes} // Use updated nodes with onDelete function
+          edges={edges}
+          onConnect={onConnect}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClickHandler}
+          nodeTypes={nodeTypes}
+          fitView
+          deleteKeyCode={['Delete', 'Backspace']}
+        >
+          <Background gap={16} size={1} className="!bg-gray-950" />
+          <MiniMap nodeColor="#3B82F6" maskColor="rgba(15, 23, 42, 0.7)" />
+          <Controls className="[&_button]:bg-gray-800 [&_button]:border-gray-700 [&_button:hover]:bg-gray-700" />
+        </ReactFlow>
+      </div>
+
+      {/* Clear All Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showClearDialog}
+        onClose={() => setShowClearDialog(false)}
+        onConfirm={confirmClearAll}
+        title="Clear Canvas"
+        message="Are you sure you want to clear the entire canvas? This will remove all nodes and edges. This action cannot be undone."
+        confirmText="Clear All"
+        cancelText="Cancel"
+        variant="danger"
+      />
+    </>
   );
 }
 

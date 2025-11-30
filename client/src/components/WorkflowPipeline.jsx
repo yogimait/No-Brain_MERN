@@ -69,6 +69,27 @@ export default function WorkflowPipeline({ workflow }) {
     fetchExecutionStatus();
   }, [workflow?._id]);
 
+  // When a real execution is present, map node logs to statuses to update the UI
+  useEffect(() => {
+    if (!executionStatus || !executionStatus.nodeLogs) return;
+
+    const logs = executionStatus.nodeLogs || executionStatus.logs || [];
+    const statusMap = {};
+    logs.forEach((log) => {
+      const nodeId = log.nodeId || log.nodeId;
+      const status = log.status === 'failed' || log.status === 'error' ? NODE_STATUS.FAILED : (log.status === 'running' ? NODE_STATUS.RUNNING : NODE_STATUS.COMPLETED);
+      if (nodeId) statusMap[nodeId] = status;
+    });
+
+    // Set unfound nodes to pending
+    nodes.forEach(node => {
+      if (!statusMap[node.id]) statusMap[node.id] = NODE_STATUS.PENDING;
+    });
+
+    setNodeStatuses(statusMap);
+    setLoading(false);
+  }, [executionStatus]);
+
   // Simple grid-based layout to ensure no overlapping
   const { nodePositions, containerWidth, containerHeight } = useMemo(() => {
     if (nodes.length === 0) {

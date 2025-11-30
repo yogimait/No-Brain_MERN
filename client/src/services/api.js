@@ -1,111 +1,3 @@
-// import axios from 'axios';
-
-// const API_BASE_URL = 'http://localhost:3000/api';
-
-// const api = axios.create({
-//   baseURL: API_BASE_URL,
-//   headers: {
-//     'Content-Type': 'application/json',
-//   },
-// });
-
-// // Add response interceptor to handle errors
-// api.interceptors.response.use(
-//   (response) => {
-//     // If response data is already the API response format, return it
-//     return response;
-//   },
-//   (error) => {
-//     console.error('API Error:', error);
-//     if (error.response) {
-//       // Server responded with error status
-//       console.error('Error Response:', error.response.data);
-//     } else if (error.request) {
-//       // Request was made but no response received
-//       console.error('No response received:', error.request);
-//       error.message = 'No response from server. Make sure the backend is running.';
-//     } else {
-//       // Something else happened
-//       console.error('Error setting up request:', error.message);
-//     }
-//     return Promise.reject(error);
-//   }
-// );
-
-// // Workflow APIs
-// export const workflowAPI = {
-//   // Create a new workflow
-//   create: async (workflowData) => {
-//     const response = await api.post('/workflows', workflowData);
-//     return response.data;
-//   },
-
-//   // Get all workflows (with optional filters)
-//   getAll: async (params = {}) => {
-//     const response = await api.get('/workflows', { params });
-//     return response.data;
-//   },
-
-//   // Get workflow by ID
-//   getById: async (id) => {
-//     const response = await api.get(`/workflows/${id}`);
-//     return response.data;
-//   },
-
-//   // Update workflow
-//   update: async (id, workflowData) => {
-//     const response = await api.put(`/workflows/${id}`, workflowData);
-//     return response.data;
-//   },
-
-//   // Delete workflow
-//   delete: async (id) => {
-//     const response = await api.delete(`/workflows/${id}`);
-//     return response.data;
-//   },
-
-//   // Search workflows
-//   search: async (query) => {
-//     const response = await api.get('/workflows/search', { params: { q: query } });
-//     return response.data;
-//   },
-// };
-
-// // Execution APIs
-// export const executionAPI = {
-//   // Create a new execution log
-//   create: async (executionData) => {
-//     const response = await api.post('/executions', executionData);
-//     return response.data;
-//   },
-
-//   // Get all executions (with optional filters)
-//   getAll: async (params = {}) => {
-//     const response = await api.get('/executions', { params });
-//     return response.data;
-//   },
-
-//   // Get executions by workflow ID
-//   getByWorkflow: async (workflowId, params = {}) => {
-//     const response = await api.get(`/executions/workflow/${workflowId}`, { params });
-//     return response.data;
-//   },
-
-//   // Get execution by runId
-//   getByRunId: async (runId) => {
-//     const response = await api.get(`/executions/${runId}`);
-//     return response.data;
-//   },
-
-//   // Update execution
-//   update: async (runId, executionData) => {
-//     const response = await api.put(`/executions/${runId}`, executionData);
-//     return response.data;
-//   },
-// };
-
-// export default api;
-
 import axios from 'axios';
 
 // --- Configuration ---
@@ -113,7 +5,8 @@ import axios from 'axios';
 // Make sure this matches the port your backend server is running on.
 // If your backend is at http://localhost:8000, and routes are /api/...,
 // then this is correct.
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+// Vite exposes env vars via `import.meta.env`. Prefix your env var with `VITE_`.
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -124,7 +17,7 @@ const apiClient = axios.create({
 });
 
 // Add response interceptor to handle errors
-api.interceptors.response.use(
+apiClient.interceptors.response.use(
   (response) => {
     // If response data is already the API response format, return it
     return response;
@@ -154,7 +47,7 @@ export const workflowAPI = {
    * @returns {Promise<object>} The created workflow object
    */
   create: async (workflowData) => {
-    const response = await apiClient.post('/workflow', workflowData);
+    const response = await apiClient.post('/workflows', workflowData);
     return response.data; // Assuming backend sends { success: true, data: workflow }
   },
 
@@ -165,7 +58,7 @@ export const workflowAPI = {
    * @returns {Promise<object>} The updated workflow object
    */
   update: async (id, workflowData) => {
-    const response = await apiClient.put(`/workflow/${id}`, workflowData);
+    const response = await apiClient.put(`/workflows/${id}`, workflowData);
     return response.data; // Assuming backend sends { success: true, data: workflow }
   },
 
@@ -173,8 +66,8 @@ export const workflowAPI = {
    * Get all workflows (e.g., for the dashboard).
    * @returns {Promise<Array>} A list of workflows
    */
-  getAll: async () => {
-    const response = await apiClient.get('/workflow');
+  getAll: async (params = {}) => {
+    const response = await apiClient.get('/workflows', { params });
     return response.data; // Assuming backend sends { success: true, data: [workflows] }
   },
 
@@ -184,7 +77,7 @@ export const workflowAPI = {
    * @returns {Promise<object>} The workflow object
    */
   getById: async (id) => {
-    const response = await apiClient.get(`/workflow/${id}`);
+    const response = await apiClient.get(`/workflows/${id}`);
     return response.data; // Assuming backend sends { success: true, data: workflow }
   },
 };
@@ -212,7 +105,7 @@ export const executionAPI = {
    */
   getAllLogs: async () => {
     // This is an assumed endpoint. Adjust if your backend route is different.
-    const response = await apiClient.get('/execution'); 
+    const response = await apiClient.get('/executions'); 
     return response.data; // Assuming backend sends { success: true, data: [logs] }
   },
   
@@ -225,22 +118,60 @@ export const executionAPI = {
     console.warn('executionAPI.create is deprecated for test runs. The backend now handles logging automatically.');
     // This assumes an endpoint exists to *manually* create a log.
     // We keep it just in case, but it's bad practice.
-    const response = await apiClient.post('/execution', executionData);
+    const response = await apiClient.post('/executions', executionData);
     return response.data;
   },
 
   // Get execution by runId
   getByRunId: async (runId) => {
-    const response = await api.get(`/executions/${runId}`);
+    const response = await apiClient.get(`/executions/${runId}`);
     return response.data;
   },
 
   // Update execution
   update: async (runId, executionData) => {
-    const response = await api.put(`/executions/${runId}`, executionData);
+    const response = await apiClient.put(`/executions/${runId}`, executionData);
+    return response.data;
+  },
+  // Get all executions (with optional query params)
+  getAll: async (params = {}) => {
+    const response = await apiClient.get('/executions', { params });
+    return response.data;
+  },
+  // Get executions by workflow
+  getByWorkflow: async (workflowId, params = {}) => {
+    const response = await apiClient.get(`/executions/workflow/${workflowId}`, { params });
+    return response.data;
+  },
+  // Delete execution by runId
+  delete: async (runId) => {
+    const response = await apiClient.delete(`/executions/${runId}`);
     return response.data;
   },
 };
 
-export default api;
+// --- Auth APIs ---
+export const authAPI = {
+  login: async (credentials) => {
+    const response = await apiClient.post('/auth/login', credentials);
+    return response.data;
+  },
 
+  register: async (userData) => {
+    const response = await apiClient.post('/auth/register', userData);
+    return response.data;
+  },
+
+  logout: async () => {
+    const response = await apiClient.post('/auth/logout');
+    return response.data;
+  },
+
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  }
+};
+
+// Export the axios client in case other modules prefer a default import
+export default apiClient;

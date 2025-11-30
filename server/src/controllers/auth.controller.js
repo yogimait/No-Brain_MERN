@@ -12,6 +12,10 @@ const generateTokensAndSetCookies = async (userId, res) => {
             throw new ApiError(404, "User not found");
         }
 
+        console.log('Generating tokens for user:', user._id);
+        console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+        console.log('JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
+
         const accessToken = user.generateAccessToken();
         const refreshToken = user.generateRefreshToken();
 
@@ -38,7 +42,8 @@ const generateTokensAndSetCookies = async (userId, res) => {
 
         return { accessToken, refreshToken };
     } catch (error) {
-        throw new ApiError(500, "Token generation failed");
+        console.error('Token generation error:', error.message);
+        throw new ApiError(500, `Token generation failed: ${error.message}`);
     }
 };
 

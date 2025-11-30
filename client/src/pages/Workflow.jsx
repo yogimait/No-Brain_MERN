@@ -24,11 +24,14 @@ import {
   Loader2,
   Sparkles,
   X,
-  ArrowLeft
+  ArrowLeft,
+  Edit,
+  Text
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
 import { workflowAPI, executionAPI } from '../services/api';
+import { mapLabelToHandler } from '../services/nodeTypeMap';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function WorkflowEditorPage() {
@@ -57,6 +60,9 @@ export default function WorkflowEditorPage() {
   const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResults, setRunResults] = useState(null);
+  const [showRunResults, setShowRunResults] = useState(false);
 
   // Helper function to get icon based on label/type - defined before useEffect
   const getIconForLabel = (label) => {
@@ -344,7 +350,7 @@ export default function WorkflowEditorPage() {
         id: `ai-gen-${i}-${Math.round(Math.random()*99999)}`,
         type: 'custom',
         position: { x: 170 + 220*(i%2), y: 120 + 110*Math.floor(i/2) },
-        data: t
+        data: { label: t, icon: getIconForLabel(t), handlerType: mapLabelToHandler(t) }
       }));
       let aiEdges = [];
       for (let i = 0; i < aiNodes.length-1; ++i) aiEdges.push({ id: `aiedge${i}`, source: aiNodes[i].id, target: aiNodes[i+1].id, type: 'smoothstep' });
@@ -407,7 +413,7 @@ export default function WorkflowEditorPage() {
       id: String(Date.now() + Math.random()),
       type: 'custom',
       position: { x: 250, y: 50 + nodes.length * 50 },
-      data: { label: nodeType, icon: icon },
+      data: { label: nodeType, icon: icon, handlerType: mapLabelToHandler(nodeType) },
     };
     setNodes((prev) => [...prev, newNode]);
   };
@@ -575,6 +581,62 @@ export default function WorkflowEditorPage() {
     }
   };
 
+  const handleRunWorkflow = async () => {
+    if (nodes.length === 0) {
+      toast.error('Please add at least one node to run the workflow.');
+      return;
+    }
+
+    setIsRunning(true);
+    try {
+      const payload = {
+        nodes: nodes.map((node) => ({
+          id: node.id,
+          type: node.data?.handlerType || mapLabelToHandler(node.data?.label),
+          data: node.data
+        })),
+        edges: edges.map((e) => ({ source: e.source, target: e.target }))
+      };
+
+      console.log('Running workflow with payload:', payload);
+      const response = await executionAPI.run(payload);
+      console.log('Run response:', response);
+
+      if (response && response.success && response.data) {
+        const result = response.data;
+        // Save run results to local state and display
+        setRunResults(result);
+        setShowRunResults(true);
+
+        // Also persist as an Execution log in the backend if we have a workflowId
+        if (currentWorkflowId) {
+          const executionData = {
+            workflowId: currentWorkflowId,
+            status: result.status || (result.failedNode ? 'failed' : 'completed'),
+            nodeLogs: result.logs || [],
+            duration: typeof result.executionTime === 'string' ? Number((result.executionTime||'0').replace(/[^0-9]/g, '')) : result.executionTime || 0,
+            runId: result.runId
+          };
+          try {
+            const saveResp = await executionAPI.create(executionData);
+            console.log('Saved execution log:', saveResp);
+          } catch (err) {
+            console.warn('Failed to save execution log:', err);
+          }
+        }
+
+        toast.success('Workflow executed. Check the results panel.');
+      } else {
+        toast.error('Workflow run failed. Check console for details.');
+      }
+    } catch (err) {
+      console.error('Error running workflow:', err);
+      toast.error('Workflow run failed: ' + (err.message || 'Unknown'));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const applyWorkflow = async () => {
     if (nodes.length === 0) {
       toast.error('Please add at least one node to the workflow.');
@@ -729,6 +791,20 @@ export default function WorkflowEditorPage() {
                 )}
                 Test
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                onClick={handleRunWorkflow}
+                disabled={nodes.length === 0 || isRunning}
+              >
+                {isRunning ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Rocket className="w-4 h-4 mr-2" />
+                )}
+                Run
+              </Button>
               
               <Button
                 size="sm"
@@ -860,6 +936,66 @@ export default function WorkflowEditorPage() {
         </div>
       )}
       {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) 🚀 */}
+      {/* Run Results Sidebar */}
+      {showRunResults && runResults && (
+        <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">Run Results • {runResults.runId}</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowRunResults(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ×
+              </Button>
+            </div>
+
+            {runResults.logs && runResults.logs.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-2">No nodes executed or logs available</p>
+            ) : (
+              runResults.logs.map((log, idx) => (
+                (() => {
+                  const nodeLabel = nodes.find(n => n.id === log.nodeId)?.data?.label || log.nodeId;
+                  const isSuccess = log.status === 'success' || log.status === 'completed' || log.success === true;
+                  const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
+                  const messageText = log.error || log.message || (isSuccess ? 'Completed' : 'Failed');
+                  
+                  return (
+                    <Card key={idx} className="p-3 bg-gray-800/50 rounded-lg border-gray-600 mb-2">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 mt-1">
+                          {isSuccess ? (
+                            <CheckCircle className={`w-5 h-5 ${iconColor}`} />
+                          ) : (
+                            <AlertCircle className={`w-5 h-5 ${iconColor}`} />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-white font-medium text-sm">{nodeLabel}</h3>
+                          <p className={`text-xs mt-1 ${isSuccess ? 'text-green-400' : 'text-red-400'}`}>
+                            {messageText}
+                          </p>
+                          <p className="text-gray-500 text-xs mt-2">{log.timestamp}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })()
+              ))
+            )}
+
+            <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-300 font-medium text-sm">Summary</span>
+              </div>
+              <p className="text-gray-300 text-xs">Status: <span className="font-semibold">{runResults.status}</span></p>
+            </div>
+          </div>
+        </div>
+      )}
       {showPromptBox && (
         <div
           ref={promptBoxRef}

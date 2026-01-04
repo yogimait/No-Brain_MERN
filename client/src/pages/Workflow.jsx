@@ -1,4 +1,4 @@
-
+﻿
 
 
 
@@ -30,8 +30,8 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
-import { workflowAPI, executionAPI } from '../services/api';
-import { mapLabelToHandler } from '../services/nodeTypeMap';
+import { workflowAPI, executionAPI, nlpAPI } from '../services/api';
+import { mapLabelToHandler, mapHandlerToDisplayLabel, nodeLabelToHandler } from '../services/nodeTypeMap';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function WorkflowEditorPage() {
@@ -198,167 +198,165 @@ export default function WorkflowEditorPage() {
       setTimeout(() => setShowPromptBox(false), 300);
   };
 
-  // Utility for random node addition
-  function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
+  // Handle AI Command Center prompt - call Gemini to modify the workflow
   const handleSendPrompt = async () => {
-    setPromptLoading(true);
-    await new Promise(r => setTimeout(r, 1200)); // Simulate request
-
-    // Sample from 3-5 node types and connect them
-    const types = [
-      { label: 'Web Scraper', icon: <Plug size={16} /> },
-      { label: 'AI Summarizer', icon: <Rows size={16} /> },
-      { label: 'Slack Message', icon: <MessageSquare size={16} /> },
-      { label: 'Email Service', icon: <Mail size={16} /> },
-    ];
-    let num = getRandomInt(1, 2);
-    let newNodes = [], newEdges = [];
-    for (let i = 0; i < num; i++) {
-      const idx = getRandomInt(0, types.length - 1);
-      const nodeId = `ai-${Date.now()}-${i}-${Math.round(Math.random()*1000)}`;
-      newNodes.push({
-        id: nodeId,
-        type: 'custom',
-        position: { x: 200 + i*60 + getRandomInt(-30,30), y: 250 + i*50 + getRandomInt(-30,30) },
-        data: types[idx]
-      });
-      if (i > 0) {
-        newEdges.push({
-          id: `e${newNodes[i-1].id}-${nodeId}`,
-          source: newNodes[i-1].id,
-          target: nodeId,
-          type: 'smoothstep',
-        });
-      }
+    if (!promptInput.trim()) {
+      toast.error('Please describe the workflow change you want');
+      return;
     }
-    setNodes(ns => [...ns, ...newNodes]);
-    setEdges(es => [...es, ...newEdges]);
-    setPromptLoading(false);
-    closePromptBox();
-    setPromptInput("");
+
+    setPromptLoading(true);
+
+    try {
+      // Build a prompt that includes current workflow context
+      const currentWorkflowSummary = `Current workflow: ${nodes.length} nodes (${nodes.map(n => n.data?.label).join(', ')}), ${edges.length} connections`;
+      const modificationPrompt = `${currentWorkflowSummary}. User request: ${promptInput}. Generate the modified workflow.`;
+
+      console.log('ðŸ¤– Sending workflow modification prompt to Gemini:', modificationPrompt);
+
+      // Call Gemini API to generate modified workflow
+      const response = await nlpAPI.generateWorkflow(modificationPrompt);
+
+      console.log('âœ… Gemini response for modification:', response);
+
+      if (response && response.success && response.data && response.data.workflow) {
+        const modifiedWorkflow = response.data.workflow;
+
+        // Process the returned nodes and edges
+        const newNodes = (modifiedWorkflow.nodes || []).map((node, idx) => ({
+          id: node.id || `ai-mod-${idx}-${Date.now()}`,
+          type: node.type || 'custom',
+          position: node.position || { x: 100 + idx * 250, y: 100 },
+          data: {
+            label: node.data?.label || node.label || 'Unknown',
+            icon: getIconForLabel(node.data?.label || node.label || 'Unknown'),
+            handlerType: mapLabelToHandler(node.data?.label || node.label || 'Unknown'),
+            ...node.data
+          }
+        }));
+
+        const newEdges = (modifiedWorkflow.edges || []).map((edge, idx) => ({
+          id: edge.id || `ai-mod-edge-${idx}`,
+          source: edge.source,
+          target: edge.target,
+          type: edge.type || 'smoothstep'
+        }));
+
+        // Replace the workflow with the modified one
+        setNodes(newNodes);
+        setEdges(newEdges);
+
+        toast.success(`âœ¨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
+        console.log('âœ… Workflow successfully modified with Gemini AI');
+      } else {
+        throw new Error(response?.error || 'Failed to generate modified workflow');
+      }
+    } catch (error) {
+      console.error('âŒ Error modifying workflow:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to modify workflow';
+      toast.error(errorMsg);
+    } finally {
+      setPromptLoading(false);
+      closePromptBox();
+      setPromptInput('');
+    }
   };
 
-  // Initialize with dummy workflow if AI-generated
+  // Load AI-generated workflow from Gemini API response
   useEffect(() => {
-    if (isAIGenerated && nodes.length === 0) {
-      const dummyNodes = [
-        {
-          id: 'node-1',
-          type: 'custom',
-          position: { x: 100, y: 100 },
-          data: { 
-            label: 'RSS Feed', 
-            icon: <Plug size={16} /> 
-          },
-        },
-        {
-          id: 'node-2',
-          type: 'custom',
-          position: { x: 400, y: 100 },
-          data: { 
-            label: 'AI Summarizer', 
-            icon: <Rows size={16} /> 
-          },
-        },
-        {
-          id: 'node-3',
-          type: 'custom',
-          position: { x: 100, y: 300 },
-          data: { 
-            label: 'Email Service', 
-            icon: <Mail size={16} /> 
-          },
-        },
-        {
-          id: 'node-4',
-          type: 'custom',
-          position: { x: 400, y: 300 },
-          data: { 
-            label: 'Slack Message', 
-            icon: <MessageSquare size={16} /> 
-          },
-        },
-        {
-          id: 'node-5',
-          type: 'custom',
-          position: { x: 250, y: 200 },
-          data: {
-            label: 'Scheduler',
-            icon: <Rocket size={16} />
+    const aiGeneratedWorkflow = location.state?.aiGeneratedWorkflow;
+    
+    if (aiGeneratedWorkflow && nodes.length === 0) {
+      console.log('ðŸ“Š Loading AI-generated workflow from Gemini:', aiGeneratedWorkflow);
+      
+      try {
+        // Robust processing: ensure nodes have ids and labels, map edges by id or label
+        const rawNodes = aiGeneratedWorkflow.nodes || [];
+        const rawEdges = aiGeneratedWorkflow.edges || [];
+
+                const processedNodes = rawNodes.map((node, idx) => {
+          const labelFromData = node?.data?.label || node.label || node.name || node.type || '';
+          let label = (labelFromData || `node-${idx}`).toString();
+          const id = node.id || `ai-node-${idx}-${Math.round(Math.random()*10000)}`;
+          const position = node.position || { x: 100 + idx * 220, y: 80 + (idx % 3) * 120 };
+
+          // If the AI returned a handler key as the label (e.g., 'aiSummarizer'), convert to a friendly label
+          const handlerLike = (label || '').toString().trim();
+          const knownHandlers = new Set(Object.values(nodeLabelToHandler || {}));
+          if (handlerLike && knownHandlers.has(handlerLike)) {
+            label = mapHandlerToDisplayLabel(handlerLike);
           }
+
+          // If the node explicitly includes a handlerType, prefer that for mapping and display
+          if (node?.data?.handlerType && typeof node.data.handlerType === 'string') {
+            label = mapHandlerToDisplayLabel(node.data.handlerType);
+          }
+
+          return {
+            id,
+            type: node.type || 'custom',
+            position,
+            data: {
+              // Use a cleaned label for display and mapping
+              label: label,
+              icon: getIconForLabel(label),
+              handlerType: node?.data?.handlerType || mapLabelToHandler(label),
+              ...(node.data || {})
+            }
+          };
+        });
+
+        // Build lookup maps by id and by lowercased label
+        const idToNode = new Map(processedNodes.map(n => [n.id, n]));
+        const labelToId = new Map(processedNodes.map(n => [n.data.label.toString().trim().toLowerCase(), n.id]));
+
+        // Reconcile edges: support source/target or from/to and allow label references
+        const processedEdges = rawEdges.map((edge, idx) => {
+          const rawSource = edge.source || edge.from || edge.src || '';
+          const rawTarget = edge.target || edge.to || edge.dst || '';
+
+          let source = rawSource;
+          let target = rawTarget;
+
+          // If source matches an existing id, keep it; otherwise try to map by label
+          if (!idToNode.has(source)) {
+            const maybe = ('' + source).toLowerCase().trim();
+            if (labelToId.has(maybe)) source = labelToId.get(maybe);
+          }
+          if (!idToNode.has(target)) {
+            const maybe = ('' + target).toLowerCase().trim();
+            if (labelToId.has(maybe)) target = labelToId.get(maybe);
+          }
+
+          return {
+            id: edge.id || `ai-edge-${idx}-${Math.round(Math.random()*10000)}`,
+            source,
+            target,
+            type: edge.type || 'smoothstep'
+          };
+        }).filter(e => e.source && e.target); // drop invalid edges
+
+        setNodes(processedNodes);
+        setEdges(processedEdges);
+        
+        // Generate a suggested name based on metadata
+        if (aiGeneratedWorkflow.metadata?.generatedFrom) {
+          const suggestedName = `AI Generated - ${new Date().toLocaleDateString()}`;
+          setWorkflowName(suggestedName);
         }
-      ];
 
-      const dummyEdges = [
-        {
-          id: 'edge-1-2',
-          source: 'node-1',
-          target: 'node-2',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-2-3',
-          source: 'node-2',
-          target: 'node-3',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-2-4',
-          source: 'node-2',
-          target: 'node-4',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-5-1',
-          source: 'node-5',
-          target: 'node-1',
-          type: 'smoothstep',
-        }
-      ];
-
-      setNodes(dummyNodes);
-      setEdges(dummyEdges);
-    }
-  }, [isAIGenerated, nodes.length]);
-
-  // Detect if entered from /workflow/ai-prompt
-  useEffect(() => {
-    const isAIPromptMode = location?.pathname?.includes('/workflow') && location?.state?.fromAIPrompt;
-    if (isAIPromptMode && nodes.length === 0) {
-      // Generate 4-5 connected nodes
-      const types = [
-        { label: 'RSS Feed', icon: <Plug size={16} /> },
-        { label: 'AI Summarizer', icon: <Rows size={16} /> },
-        { label: 'Slack Message', icon: <MessageSquare size={16} /> },
-        { label: 'Email Service', icon: <Mail size={16} /> },
-        { label: 'Gemini API', icon: <Brain size={16} /> },
-        { label: 'GPT-4', icon: <Brain size={16} /> },
-        { label: 'AI Text Generator', icon: <Brain size={16} /> },
-        { label: 'Content Polisher', icon: <Plug size={16} /> },
-      ];
-      let nodesCount = Math.floor(Math.random()*2)+4; // 4 or 5
-      let pickedTypes = types.slice(0);
-      // Shuffle types
-      for (let i = pickedTypes.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pickedTypes[i], pickedTypes[j]] = [pickedTypes[j], pickedTypes[i]];
+        console.log('âœ… AI workflow loaded:', {
+          nodesCount: processedNodes.length,
+          edgesCount: processedEdges.length
+        });
+        
+        toast.success(`AI generated a workflow with ${processedNodes.length} nodes!`);
+      } catch (error) {
+        console.error('âŒ Error processing AI workflow:', error);
+        toast.error('Error loading AI-generated workflow');
       }
-      let used = pickedTypes.slice(0, nodesCount);
-      let aiNodes = used.map((t, i) => ({
-        id: `ai-gen-${i}-${Math.round(Math.random()*99999)}`,
-        type: 'custom',
-        position: { x: 170 + 220*(i%2), y: 120 + 110*Math.floor(i/2) },
-        data: { label: t, icon: getIconForLabel(t), handlerType: mapLabelToHandler(t) }
-      }));
-      let aiEdges = [];
-      for (let i = 0; i < aiNodes.length-1; ++i) aiEdges.push({ id: `aiedge${i}`, source: aiNodes[i].id, target: aiNodes[i+1].id, type: 'smoothstep' });
-      setNodes(aiNodes);
-      setEdges(aiEdges);
     }
-  // eslint-disable-next-line
-  }, [location.pathname, location.state, nodes.length]);
+  }, [location.state?.aiGeneratedWorkflow, nodes.length]);
 
   // Handler to update node configuration when saved from NodeConfigPanel
   const handleUpdateNode = (nodeId, updatedData) => {
@@ -756,7 +754,7 @@ export default function WorkflowEditorPage() {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* 🚀 ENHANCED PROMPT BUTTON START (Blue Theme) 🚀 */}
+              {/* ðŸš€ ENHANCED PROMPT BUTTON START (Blue Theme) ðŸš€ */}
               <Button
                 variant="outline"
                 size="sm"
@@ -776,7 +774,7 @@ export default function WorkflowEditorPage() {
                 <Sparkles className="w-4 h-4 mr-2" />
                 AI Prompt
               </Button>
-              {/* 🚀 ENHANCED PROMPT BUTTON END 🚀 */}
+              {/* ðŸš€ ENHANCED PROMPT BUTTON END ðŸš€ */}
               <Button
                 variant="outline"
                 size="sm"
@@ -870,7 +868,7 @@ export default function WorkflowEditorPage() {
                 onClick={() => setShowTestResults(false)}
                 className="text-gray-400 hover:text-white"
               >
-                ×
+                Ã—
               </Button>
             </div>
 
@@ -935,20 +933,20 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
       )}
-      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) 🚀 */}
+      {/* ðŸš€ ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) ðŸš€ */}
       {/* Run Results Sidebar */}
       {showRunResults && runResults && (
         <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Run Results • {runResults.runId}</h2>
+              <h2 className="text-xl font-bold text-white">Run Results â€¢ {runResults.runId}</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowRunResults(false)}
                 className="text-gray-400 hover:text-white"
               >
-                ×
+                Ã—
               </Button>
             </div>
 
@@ -1080,7 +1078,7 @@ export default function WorkflowEditorPage() {
           </Card>
         </div>
       )}
-      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX END 🚀 */}
+      {/* ðŸš€ ENHANCED PROMPT DRAGGABLE BOX END ðŸš€ */}
     </div>
   );
 }

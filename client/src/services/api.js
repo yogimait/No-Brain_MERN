@@ -150,6 +150,50 @@ export const executionAPI = {
   },
 };
 
+// --- NLP APIs ---
+// AI-powered workflow generation and modification using Gemini
+export const nlpAPI = {
+  /**
+   * Generate a workflow from a text prompt using Gemini AI
+   * @param {string} prompt - The user's description of the desired workflow
+   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-pro)
+   * @returns {Promise<object>} The AI-generated workflow { success, workflow, executionTime, ... }
+   */
+  generateWorkflow: async (prompt, model = 'gemini-2.5-pro') => {
+    const response = await apiClient.post('/nlp/generate', { prompt, model });
+    return response.data; // { success: true, data: { workflow, executionTime, ... }, message }
+  },
+
+  /**
+   * Generate and immediately run a workflow from a text prompt
+   * @param {string} prompt - The user's description of the desired workflow
+   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-pro)
+   * @returns {Promise<object>} Both generation and execution results
+   */
+  generateAndRun: async (prompt, model = 'gemini-2.5-pro') => {
+    const response = await apiClient.post('/nlp/generate-and-run', { prompt, model });
+    return response.data; // { success: true, data: { generation, execution }, message }
+  },
+
+  /**
+   * Get example prompts for testing
+   * @returns {Promise<Array>} List of example workflow prompts
+   */
+  getExamplePrompts: async () => {
+    const response = await apiClient.get('/nlp/examples');
+    return response.data; // { success: true, data: { examples, count, ... }, message }
+  },
+
+  /**
+   * Health check for the NLP service
+   * @returns {Promise<object>} Service health status and configuration info
+   */
+  healthCheck: async () => {
+    const response = await apiClient.get('/nlp/health');
+    return response.data; // { success: true, data: { status, geminiConfigured, ... }, message }
+  }
+};
+
 // --- Auth APIs ---
 export const authAPI = {
   login: async (credentials) => {

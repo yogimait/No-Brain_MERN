@@ -3,29 +3,99 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   ArrowRight, 
   Brain, 
   Bot,
   Sparkles,
-  Zap
+  Zap,
+  AlertCircle
 } from 'lucide-react';
+import { nlpAPI } from '../services/api';
 
 export default function AISummaryPage() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState('');
   const [workflowType, setWorkflowType] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState('');
 
   const handleGenerateWorkflow = async () => {
     if (!summary.trim() || !workflowType) return;
 
     setIsGenerating(true);
+    setError('');
 
-    // Navigate to workflow page with AI-generated flag and pass prompt
-    const params = new URLSearchParams({ mode: 'ai-generated', prompt: summary, type: workflowType });
-    navigate(`/workflow?${params.toString()}`);
+    try {
+      console.log('🚀 Starting AI workflow generation with prompt:', summary);
+      
+      // Call the Gemini API to generate the workflow
+      const response = await nlpAPI.generateWorkflow(summary);
+      
+      console.log('✅ AI Response:', response);
+      
+      // Handle the ApiResponse format: { success: true, data: { workflow, ... }, message }
+      if (response && response.success && response.data && response.data.workflow) {
+        const generatedWorkflow = response.data.workflow;
+        
+        console.log('📊 Generated workflow structure:', {
+          nodes: generatedWorkflow.nodes?.length || 0,
+          edges: generatedWorkflow.edges?.length || 0,
+          metadata: generatedWorkflow.metadata
+        });
+        
+        // Navigate to workflow editor and pass the generated workflow
+        navigate('/workflow', {
+          state: {
+            fromAIGeneration: true,
+            aiGeneratedWorkflow: generatedWorkflow,
+            prompt: summary,
+            workflowType: workflowType
+          }
+        });
+        
+        toast.success('Workflow generated successfully! Let\'s customize it.');
+      } else {
+        throw new Error(response?.error || 'Failed to generate workflow');
+      }
+    } catch (err) {
+      console.error('❌ Error generating workflow:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to generate workflow. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setIsGenerating(false);
+    }
+  };
+
+  // Retry generation with stricter instruction forcing JSON-only output
+  const handleRetryStrict = async () => {
+    if (!summary.trim() || !workflowType) return;
+    setIsGenerating(true);
+    setError('');
+
+    const strictPrompt = `${summary}\n\nIMPORTANT: Respond ONLY with a single valid JSON object. The JSON must contain two keys: \"nodes\" (array) and \"edges\" (array). Do not include any explanatory text, markdown, or backticks. Example: { \"nodes\": [...], \"edges\": [...] }`;
+
+    try {
+      const response = await nlpAPI.generateWorkflow(strictPrompt);
+      if (response && response.success && response.data && response.data.workflow) {
+        const generatedWorkflow = response.data.workflow;
+        navigate('/workflow', {
+          state: { fromAIGeneration: true, aiGeneratedWorkflow: generatedWorkflow, prompt: summary, workflowType }
+        });
+        toast.success('Workflow generated successfully (strict JSON).');
+      } else {
+        throw new Error(response?.error || 'Failed to generate workflow (strict)');
+      }
+    } catch (err) {
+      console.error('❌ Strict generation failed:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Strict generation failed. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const workflowTypes = [
@@ -80,7 +150,36 @@ export default function AISummaryPage() {
           <div className="lg:col-span-2">
             <Card className="bg-gray-900/60 border-gray-700/50 p-8 h-full">
               <div className="space-y-8 h-full flex flex-col">
-                {/* Workflow Type Selection */}
+            {/* Error Alert */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-900/20 border border-red-700/50 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-red-300 font-medium text-sm">Generation Error</p>
+                  <p className="text-red-200 text-xs mt-1">{error}</p>
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      onClick={handleRetryStrict}
+                      className="bg-red-600 hover:bg-red-700 text-white mr-2"
+                      disabled={isGenerating}
+                    >
+                      Retry with strict JSON
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setError(''); }}
+                      className="text-red-200 border-red-700"
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Workflow Type Selection */}
                 <div>
                   <label htmlFor="workflow-type" className="text-gray-300 text-lg font-medium mb-4 block">
                     Workflow Type

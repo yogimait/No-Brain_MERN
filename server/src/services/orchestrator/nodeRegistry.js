@@ -18,6 +18,11 @@ import instagramApiHandler from './handlers/instagramApi.handler.js';
 import databaseHandler from './handlers/database.handler.js';
 import fileUploadHandler from './handlers/fileUpload.handler.js';
 import dataTransformerHandler from './handlers/dataTransformer.handler.js';
+import s3UploadHandler from './handlers/s3Upload.handler.js';
+import smsSenderHandler from './handlers/smsSender.handler.js';
+import googleSheetsHandler from './handlers/googleSheets.handler.js';
+import calendarEventHandler from './handlers/calendarEvent.handler.js';
+import pagerDutyHandler from './handlers/pagerDuty.handler.js';
 import conditionCheckHandler from './handlers/conditionCheck.handler.js';
 import delayHandler from './handlers/delay.handler.js';
 import scheduleHandler from './handlers/schedule.handler.js';
@@ -52,6 +57,11 @@ const nodeHandlers = {
   instagramApi: instagramApiHandler,
   database: databaseHandler,
   fileUpload: fileUploadHandler,
+  s3Upload: s3UploadHandler,
+  smsSender: smsSenderHandler,
+  googleSheets: googleSheetsHandler,
+  calendarEvent: calendarEventHandler,
+  pagerDuty: pagerDutyHandler,
   dataTransformer: dataTransformerHandler,
   conditionCheck: conditionCheckHandler,
   delay: delayHandler,

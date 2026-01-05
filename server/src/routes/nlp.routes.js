@@ -2,10 +2,11 @@
 
 import express from 'express';
 import {
-generateWorkflow,
-generateAndRunWorkflow,
-getExamples,
-healthCheck
+  generateWorkflow,
+  generateAndRunWorkflow,
+  getExamples,
+  healthCheck,
+  getAvailableNodes
 } from '../controllers/nlp.controller.js';
 
 const router = express.Router();
@@ -14,7 +15,7 @@ const router = express.Router();
  * @route   POST /api/nlp/generate
  * @desc    Generate workflow from text prompt using Gemini
  * @access  Public (will be protected later)
- * @body    { "prompt": "your prompt here", "model": "gemini-1.5-flash" (optional) }
+ * @body    { "prompt": "your prompt here", "model": "gemini-2.5-flash" (optional) }
  */
 router.post('/generate', generateWorkflow);
 
@@ -32,6 +33,13 @@ router.post('/generate-and-run', generateAndRunWorkflow);
  * @access  Public
  */
 router.get('/examples', getExamples);
+
+/**
+ * @route   GET /api/nlp/nodes
+ * @desc    Get available node types (backend)
+ * @access  Public
+ */
+router.get('/nodes', getAvailableNodes);
 
 /**
  * @route   GET /api/nlp/health

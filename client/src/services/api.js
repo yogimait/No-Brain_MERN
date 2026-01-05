@@ -156,10 +156,10 @@ export const nlpAPI = {
   /**
    * Generate a workflow from a text prompt using Gemini AI
    * @param {string} prompt - The user's description of the desired workflow
-   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-pro)
+   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-flash)
    * @returns {Promise<object>} The AI-generated workflow { success, workflow, executionTime, ... }
    */
-  generateWorkflow: async (prompt, model = 'gemini-2.5-pro') => {
+  generateWorkflow: async (prompt, model = 'gemini-2.5-flash') => {
     const response = await apiClient.post('/nlp/generate', { prompt, model });
     return response.data; // { success: true, data: { workflow, executionTime, ... }, message }
   },
@@ -167,10 +167,10 @@ export const nlpAPI = {
   /**
    * Generate and immediately run a workflow from a text prompt
    * @param {string} prompt - The user's description of the desired workflow
-   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-pro)
+   * @param {string} model - Optional: The Gemini model to use (default: gemini-2.5-flash)
    * @returns {Promise<object>} Both generation and execution results
    */
-  generateAndRun: async (prompt, model = 'gemini-2.5-pro') => {
+  generateAndRun: async (prompt, model = 'gemini-2.5-flash') => {
     const response = await apiClient.post('/nlp/generate-and-run', { prompt, model });
     return response.data; // { success: true, data: { generation, execution }, message }
   },
@@ -191,6 +191,15 @@ export const nlpAPI = {
   healthCheck: async () => {
     const response = await apiClient.get('/nlp/health');
     return response.data; // { success: true, data: { status, geminiConfigured, ... }, message }
+  },
+
+  /**
+   * Get list of available node types from the backend
+   * @returns {Promise<object>} { types: Array<string>, count }
+   */
+  getAvailableNodes: async () => {
+    const response = await apiClient.get('/nlp/nodes');
+    return response.data; // { success, data: { types, count }, message }
   }
 };
 

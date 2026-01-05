@@ -315,9 +315,16 @@ const CustomNode = ({ data, selected = false }) => {
   );
 };
 
-const nodeTypes = {
-  custom: CustomNode,
-};
+import { nodeLabelToHandler } from '../services/nodeTypeMap';
+
+// Build nodeTypes mapping so all known handler keys render using CustomNode
+const knownHandlers = new Set(Object.values(nodeLabelToHandler));
+['twitterApi','s3Upload','smsSender','googleSheets','calendarEvent','pagerDuty','emailGenerator','database','fileUpload'].forEach(h => knownHandlers.add(h));
+
+const nodeTypes = Array.from(knownHandlers).reduce((acc, handler) => {
+  acc[handler] = CustomNode;
+  return acc;
+}, { custom: CustomNode });
 
 export default function CompleteWorkflowPage() {
   const navigate = useNavigate();

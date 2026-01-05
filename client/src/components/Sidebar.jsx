@@ -142,6 +142,10 @@ const sidebarElements = [
   { id: 'linkedin-api', name: 'LinkedIn API', icon: <Linkedin className="w-4 h-4" />, color: 'text-blue-500', category: 'Platforms' },
   { id: 'instagram-api', name: 'Instagram API', icon: <Instagram className="w-4 h-4" />, color: 'text-pink-500', category: 'Platforms' },
   { id: 'email-service', name: 'Email Service', icon: <Mail className="w-4 h-4" />, color: 'text-red-400', category: 'Platforms' },
+  { id: 'sms-sender', name: 'SMS Sender', icon: <MessageSquare className="w-4 h-4" />, color: 'text-yellow-400', category: 'Platforms' },
+  { id: 'google-sheets', name: 'Google Sheets', icon: <FileText className="w-4 h-4" />, color: 'text-green-300', category: 'Platforms' },
+  { id: 'calendar-event', name: 'Calendar Event', icon: <Calendar className="w-4 h-4" />, color: 'text-blue-300', category: 'Platforms' },
+  { id: 'pager-duty', name: 'PagerDuty', icon: <Link className="w-4 h-4" />, color: 'text-purple-400', category: 'Platforms' },
   // { id: 'slack-message', name: 'Slack Message', icon: <MessageSquare className="w-4 h-4" />, color: 'text-purple-300', category: 'Platforms' },
   
   // Data Sources
@@ -149,6 +153,7 @@ const sidebarElements = [
   { id: 'webhook', name: 'Webhook', icon: <Zap className="w-4 h-4" />, color: 'text-yellow-400', category: 'Data Sources' },
   { id: 'database', name: 'Database', icon: <Database className="w-4 h-4" />, color: 'text-cyan-400', category: 'Data Sources' },
   { id: 'file-upload', name: 'File Upload', icon: <Upload className="w-4 h-4" />, color: 'text-green-400', category: 'Data Sources' },
+  { id: 's3-upload', name: 'S3 Upload', icon: <Upload className="w-4 h-4" />, color: 'text-amber-400', category: 'Data Sources' },
   
   // Processing Elements
   { id: 'text-processor', name: 'Text Processor', icon: <FileText className="w-4 h-4" />, color: 'text-purple-400', category: 'Processing' },

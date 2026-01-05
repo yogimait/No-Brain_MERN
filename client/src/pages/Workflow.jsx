@@ -43,6 +43,7 @@ export default function WorkflowEditorPage() {
 
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
+  const [availableNodeTypes, setAvailableNodeTypes] = useState([]);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showTestResults, setShowTestResults] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -104,18 +105,37 @@ export default function WorkflowEditorPage() {
       const workflowData = location.state?.workflowData;
       const workflowId = location.state?.workflowId;
 
+      // fetch available node types once
+      try {
+        const available = await nlpAPI.getAvailableNodes();
+        const types = (available && available.success && available.data && available.data.types) ? available.data.types : [];
+        setAvailableNodeTypes(types);
+      } catch (err) {
+        console.warn('Could not fetch available node types:', err);
+      }
+
       const processNodes = (nodes) => {
-        // Reconstruct nodes with proper icons and structure
-        return (nodes || []).map(node => ({
-          ...node,
-          type: node.type || 'custom',
-          data: {
-            ...node.data,
-            // Reconstruct icon based on label - don't use serialized icon
-            icon: getIconForLabel(node.data?.label || node.label || ''),
-            label: node.data?.label || node.label || node.id,
+        // Reconstruct nodes with proper icons and structure and ensure supported types
+        return (nodes || []).map(node => {
+          let handler = node.type;
+          if (!handler || !types.includes(handler)) {
+            const mapped = mapLabelToHandler(node.data?.label || node.label || '');
+            handler = types.includes(mapped) ? mapped : 'dataFetcher';
           }
-        }));
+
+          const displayLabel = mapHandlerToDisplayLabel(handler);
+          return {
+            ...node,
+            type: handler,
+            data: {
+              ...node.data,
+              // Reconstruct icon based on authoritative display label
+              icon: getIconForLabel(displayLabel),
+              label: displayLabel,
+              handlerType: handler
+            }
+          };
+        });
       };
 
       // If we have full workflow data, use it directly
@@ -213,42 +233,80 @@ export default function WorkflowEditorPage() {
       const currentWorkflowSummary = `Current workflow: ${nodes.length} nodes (${nodes.map(n => n.data?.label).join(', ')}), ${edges.length} connections`;
       const modificationPrompt = `${currentWorkflowSummary}. User request: ${promptInput}. Generate the modified workflow.`;
 
-      console.log('ðŸ¤– Sending workflow modification prompt to Gemini:', modificationPrompt);
+      console.log('🤔 Sending workflow modification prompt to Gemini:', modificationPrompt);
 
       // Call Gemini API to generate modified workflow
       const response = await nlpAPI.generateWorkflow(modificationPrompt);
 
-      console.log('âœ… Gemini response for modification:', response);
+      console.log('✅ Gemini response for modification:', response);
 
       if (response && response.success && response.data && response.data.workflow) {
         const modifiedWorkflow = response.data.workflow;
 
+        // Ensure we have the list of backend-supported node types
+        const availableResp = await nlpAPI.getAvailableNodes();
+        const availableTypes = (availableResp && availableResp.success && availableResp.data && availableResp.data.types) ? availableResp.data.types : [];
+
         // Process the returned nodes and edges
-        const newNodes = (modifiedWorkflow.nodes || []).map((node, idx) => ({
-          id: node.id || `ai-mod-${idx}-${Date.now()}`,
-          type: node.type || 'custom',
-          position: node.position || { x: 100 + idx * 250, y: 100 },
-          data: {
-            label: node.data?.label || node.label || 'Unknown',
-            icon: getIconForLabel(node.data?.label || node.label || 'Unknown'),
-            handlerType: mapLabelToHandler(node.data?.label || node.label || 'Unknown'),
-            ...node.data
+        const newNodes = (modifiedWorkflow.nodes || []).map((node, idx) => {
+          // Determine handlerKey: prefer explicit handler key if it matches available types
+          let handlerKey = node.type;
+          if (!handlerKey || !availableTypes.includes(handlerKey)) {
+            // Try mapping by label
+            const mapped = mapLabelToHandler(node.data?.label || node.label || '');
+            handlerKey = availableTypes.includes(mapped) ? mapped : 'dataFetcher';
           }
-        }));
 
-        const newEdges = (modifiedWorkflow.edges || []).map((edge, idx) => ({
-          id: edge.id || `ai-mod-edge-${idx}`,
-          source: edge.source,
-          target: edge.target,
-          type: edge.type || 'smoothstep'
-        }));
+          if (!availableTypes.includes(handlerKey)) {
+            console.warn('Replacing unsupported node type with dataFetcher:', node.type, '-> dataFetcher');
+            handlerKey = 'dataFetcher';
+          }
 
-        // Replace the workflow with the modified one
+          const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+
+          return {
+            id: node.id || `ai-mod-${idx}-${Date.now()}`,
+            type: handlerKey,
+            position: node.position || { x: 100 + idx * 250, y: 100 },
+            data: {
+              label: displayLabel,
+              icon: getIconForLabel(displayLabel),
+              handlerType: handlerKey,
+              ...node.data
+            }
+          };
+        });
+
+        // Build edge list mapping labels to ids when necessary
+        const labelToId = new Map(newNodes.map(n => [n.data.label.toString().trim().toLowerCase(), n.id]));
+
+        const newEdges = (modifiedWorkflow.edges || []).map((edge, idx) => {
+          let source = edge.source || edge.from || '';
+          let target = edge.target || edge.to || '';
+
+          // If source/target are labels, map to node ids
+          if (!newNodes.find(n => n.id === source)) {
+            const maybe = ('' + source).toLowerCase().trim();
+            if (labelToId.has(maybe)) source = labelToId.get(maybe);
+          }
+          if (!newNodes.find(n => n.id === target)) {
+            const maybe = ('' + target).toLowerCase().trim();
+            if (labelToId.has(maybe)) target = labelToId.get(maybe);
+          }
+
+          return {
+            id: edge.id || `ai-edge-${idx}-${Date.now()}`,
+            source,
+            target,
+            type: edge.type || 'step'
+          };
+        }).filter(e => e.source && e.target);
+
         setNodes(newNodes);
         setEdges(newEdges);
 
-        toast.success(`âœ¨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
-        console.log('âœ… Workflow successfully modified with Gemini AI');
+        toast.success(`✨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
+        console.log('✅ Workflow successfully modified with Gemini AI');
       } else {
         throw new Error(response?.error || 'Failed to generate modified workflow');
       }
@@ -333,7 +391,7 @@ export default function WorkflowEditorPage() {
             id: edge.id || `ai-edge-${idx}-${Math.round(Math.random() * 10000)}`,
             source,
             target,
-            type: edge.type || 'smoothstep'
+            type: edge.type || 'step'
           };
         }).filter(e => e.source && e.target); // drop invalid edges
 
@@ -378,41 +436,26 @@ export default function WorkflowEditorPage() {
   };
 
   const addNode = (nodeType) => {
+    const handlerKey = mapLabelToHandler(nodeType);
+    const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+
     let icon;
-    switch (nodeType) {
+    switch (displayLabel) {
       case 'Web Scraper': icon = <Plug size={16} />; break;
       case 'AI Summarizer': icon = <Rows size={16} />; break;
-      case 'Gemini API': icon = <Brain size={16} />; break;
-      case 'GPT-4': icon = <Brain size={16} />; break;
-      case 'Claude': icon = <Brain size={16} />; break;
-      case 'Twitter API': icon = <Plug size={16} />; break;
-      case 'LinkedIn API': icon = <Plug size={16} />; break;
-      case 'Instagram API': icon = <Plug size={16} />; break;
-      case 'Email Service': icon = <Mail size={16} />; break;
-      case 'Slack Message': icon = <MessageSquare size={16} />; break;
-      case 'RSS Feed': icon = <Plug size={16} />; break;
-      case 'Webhook': icon = <Plug size={16} />; break;
-      case 'Database': icon = <Plug size={16} />; break;
-      case 'File Upload': icon = <Plug size={16} />; break;
-      case 'Text Processor': icon = <Plug size={16} />; break;
-      case 'Image Processor': icon = <Plug size={16} />; break;
-      case 'Data Transformer': icon = <Plug size={16} />; break;
-      case 'Condition Check': icon = <Plug size={16} />; break;
-      case 'Delay': icon = <Plug size={16} />; break;
-      case 'Schedule': icon = <Plug size={16} />; break;
-      case 'Loop': icon = <Plug size={16} />; break;
-      case 'Merge': icon = <Plug size={16} />; break;
       case 'AI Text Generator': icon = <Brain size={16} />; break;
       case 'Content Polisher': icon = <Plug size={16} />; break;
-      case 'Sentiment Analyzer': icon = <Plug size={16} />; break;
-      case 'Email Generator': icon = <Plug size={16} />; break;
+      case 'Sentiment Analyzer': icon = <Text size={16} />; break;
+      case 'Email Generator': icon = <Mail size={16} />; break;
+      case 'Slack Message': icon = <MessageSquare size={16} />; break;
       default: icon = <Plug size={16} />;
     }
+
     const newNode = {
       id: String(Date.now() + Math.random()),
-      type: 'custom',
+      type: handlerKey,
       position: { x: 250, y: 50 + nodes.length * 50 },
-      data: { label: nodeType, icon: icon, handlerType: mapLabelToHandler(nodeType) },
+      data: { label: displayLabel, icon: icon, handlerType: handlerKey },
     };
     setNodes((prev) => [...prev, newNode]);
   };

@@ -36,6 +36,31 @@ const systemPrompt = `You are an expert workflow automation assistant. Your job 
    - Use when: User wants to modify, filter, or transform data
    - Example data: { "inputFrom": "previous_node_id", "operation": "filter" }
 
+7. s3Upload
+   - Purpose: Upload files or artifacts to S3-compatible storage
+   - Use when: User wants to persist content/binaries
+   - Example data: { "bucket": "my-bucket", "key": "path/to/file.txt" }
+
+8. smsSender
+   - Purpose: Send SMS messages (e.g., via Twilio)
+   - Use when: User wants to notify via SMS
+   - Example data: { "to": "+15551234567", "message": "Your report is ready" }
+
+9. googleSheets
+   - Purpose: Read/Write Google Sheets
+   - Use when: User wants to log or retrieve tabular data
+   - Example data: { "spreadsheetId": "abc", "range": "Sheet1!A1" }
+
+10. calendarEvent
+   - Purpose: Create calendar events (Google/Outlook)
+   - Use when: User wants to schedule meetings or reminders
+   - Example data: { "start": "2026-01-05T12:00:00Z", "end": "2026-01-05T13:00:00Z", "title": "Meeting" }
+
+11. pagerDuty
+   - Purpose: Trigger incidents/alerts
+   - Use when: User wants to escalate errors or important events
+   - Example data: { "summary": "High error rate", "severity": "critical" }
+
 **Workflow Rules:**
 1. Every node must have a unique ID (use sequential numbers: "1", "2", "3", etc.)
 2. Every node must have a "type" from the available types above
@@ -46,7 +71,12 @@ const systemPrompt = `You are an expert workflow automation assistant. Your job 
 7. Connect nodes sequentially using edges with "source" and "target" properties
 
 **Response Format:**
-You must respond ONLY with valid JSON in this exact structure (no markdown, no code blocks, no explanations):
+- Place the entire JSON object between the delimiters: '<<<JSON>>>' and '<<<END_JSON>>>'.
+- Return EXACTLY one JSON object between the delimiters. No markdown, no code fences, and no explanatory text outside or inside these delimiters.
+- **Do NOT include any 'position' fields.** Positions will be computed by the UI or server.
+- Ensure there are **no trailing commas** and that arrays/objects are properly closed. If you cannot produce valid JSON, reply with the literal text 'INVALID_JSON' between the delimiters.
+
+Example schema (the object must match this structure):
 {
   "nodes": [
     { "id": "1", "type": "nodeType", "data": {} }
@@ -56,6 +86,7 @@ You must respond ONLY with valid JSON in this exact structure (no markdown, no c
   ]
 }
 
+Note: the JSON object must appear *between* '<<<JSON>>>' and '<<<END_JSON>>>' so we can reliably extract it.
 **Examples:**
 
 Example 1:
@@ -76,9 +107,9 @@ User Input: "Fetch tweets, summarize them, and email me the summary"
 Your Response:
 {
   "nodes": [
-    { "id": "1", "type": "dataFetcher", "data": { "source": "twitter", "query": "tweets" } },
+    { "id": "1", "type": "twitterApi", "data": { "source": "twitter", "query": "tweets" } },
     { "id": "2", "type": "aiSummarizer", "data": { "inputFrom": "1" } },
-    { "id": "3", "type": "emailSender", "data": { "inputFrom": "2", "to": "user@example.com" } }
+    { "id": "3", "type": "emailGenerator", "data": { "inputFrom": "2", "to": "user@example.com" } }
   ],
   "edges": [
     { "source": "1", "target": "2" },

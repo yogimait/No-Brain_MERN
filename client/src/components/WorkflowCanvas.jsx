@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useCallback, useMemo, useState } from 'react';
-import { mapLabelToHandler } from '../services/nodeTypeMap';
+import { mapLabelToHandler, mapHandlerToDisplayLabel } from '../services/nodeTypeMap';
 import { Card } from '../components/ui/card';
 import { Plug, Rows, Edit, MessageSquare, Bot, Trash2, Text, Mail, X } from 'lucide-react';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
@@ -64,9 +64,16 @@ const CustomNode = ({ id, data, selected = false }) => {
   );
 };
 
-const nodeTypes = {
-  custom: CustomNode,
-};
+import { nodeLabelToHandler } from '../services/nodeTypeMap';
+
+// Build nodeTypes mapping dynamically so that known handler keys use the CustomNode renderer
+const knownHandlersCanvas = new Set(Object.values(nodeLabelToHandler));
+['twitterApi','s3Upload','smsSender','googleSheets','calendarEvent','pagerDuty','emailGenerator','database','fileUpload'].forEach(h => knownHandlersCanvas.add(h));
+
+const nodeTypes = Array.from(knownHandlersCanvas).reduce((acc, handler) => {
+  acc[handler] = CustomNode;
+  return acc;
+}, { custom: CustomNode });
 
 export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNodeClick }) {
   const reactFlowInstance = useReactFlow();
@@ -74,7 +81,7 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
 
   const onNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
   const onEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
-  const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, type: 'step' }, eds)), [setEdges]);
   const onNodeClickHandler = useCallback((event, node) => onNodeClick(node.id), [onNodeClick]);
 
   // Delete node function
@@ -106,8 +113,12 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
     if (typeof type === 'undefined' || !type) return;
 
     const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+
+    const handlerKey = mapLabelToHandler(type);
+    const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+
     let icon = <Plug size={16} />;
-    switch (type) {
+    switch (displayLabel) {
       case 'Web Scraper': icon = <Plug size={16} />; break;
       case 'AI Summarizer': icon = <Rows size={16} />; break;
       case 'Slack Message': icon = <MessageSquare size={16} />; break;
@@ -119,14 +130,14 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
     }
 
     const newNode = {
-      id: `dndnode_${+new Date()}`,
-      type: 'custom',
+      id: `${handlerKey}-${+new Date()}`,
+      type: handlerKey,
       position,
       data: {
-        label: type,
+        label: displayLabel,
         icon: icon,
-        handlerType: mapLabelToHandler(type),
-        onDelete: onDeleteNode // Pass the function directly
+        handlerType: handlerKey,
+        onDelete: onDeleteNode
       },
       selectable: true,
     };

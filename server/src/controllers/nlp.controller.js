@@ -1,6 +1,7 @@
 // server/src/controllers/nlp.controller.js
 
 import { generateWorkflowFromText, getExamplePrompts } from '../services/nlp/textToWorkflow.service.js';
+import { getAvailableNodeTypes } from '../services/orchestrator/nodeRegistry.js';
 import { runWorkflow } from '../services/orchestrator.service.js';
 import  ApiResponse  from '../utils/ApiResponse.js';
 import  ApiError  from '../utils/ApiError.js';
@@ -99,14 +100,21 @@ const healthCheck = asyncHandler(async (req, res) => {
       aiProvider: 'gemini',
       geminiConfigured: hasApiKey,
       freeForever: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      availableNodeTypes: getAvailableNodeTypes()
     }, 'NLP service is healthy')
   );
+});
+
+const getAvailableNodes = asyncHandler(async (req, res) => {
+  const types = getAvailableNodeTypes();
+  res.status(200).json(new ApiResponse(200, { types, count: types.length }, 'Available node types'));
 });
 
 export {
   generateWorkflow,
   generateAndRunWorkflow,
   getExamples,
-  healthCheck
+  healthCheck,
+  getAvailableNodes
 };

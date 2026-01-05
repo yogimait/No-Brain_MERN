@@ -1,26 +1,27 @@
-
+﻿
 
 
 
 import { useState, useEffect } from 'react';
-import { ReactFlowProvider } from 'reactflow'; 
+import { ReactFlowProvider } from 'reactflow';
 import Sidebar from '../components/Sidebar';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 import NodeConfigPanel from '../components/NodeConfigPanel';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { 
-  Plug, 
-  Rows, 
-  Rocket, 
-  Brain, 
-  Bot, 
-  Mail, 
-  MessageSquare, 
-  Play, 
-  CheckCircle, 
-  AlertCircle, 
+import NoBrainLogo from '../components/NoBrainLogo';
+import {
+  Plug,
+  Rows,
+  Rocket,
+  Brain,
+  Bot,
+  Mail,
+  MessageSquare,
+  Play,
+  CheckCircle,
+  AlertCircle,
   Loader2,
   Sparkles,
   X,
@@ -30,8 +31,8 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
-import { workflowAPI, executionAPI } from '../services/api';
-import { mapLabelToHandler } from '../services/nodeTypeMap';
+import { workflowAPI, executionAPI, nlpAPI } from '../services/api';
+import { mapLabelToHandler, mapHandlerToDisplayLabel, nodeLabelToHandler } from '../services/nodeTypeMap';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function WorkflowEditorPage() {
@@ -39,16 +40,17 @@ export default function WorkflowEditorPage() {
   const { getUserId } = useAuth();
   const [searchParams] = useSearchParams();
   const isAIGenerated = searchParams.get('mode') === 'ai-generated';
-  
+
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
+  const [availableNodeTypes, setAvailableNodeTypes] = useState([]);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showTestResults, setShowTestResults] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResults, setTestResults] = useState([]);
   const [workflowName, setWorkflowName] = useState("");
   const [showPromptBox, setShowPromptBox] = useState(false);
-  const [isPromptBoxVisible, setIsPromptBoxVisible] = useState(false); 
+  const [isPromptBoxVisible, setIsPromptBoxVisible] = useState(false);
   const [promptInput, setPromptInput] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
   const promptBoxRef = useRef(null);
@@ -102,19 +104,38 @@ export default function WorkflowEditorPage() {
     const loadWorkflow = async () => {
       const workflowData = location.state?.workflowData;
       const workflowId = location.state?.workflowId;
-      
+
+      // fetch available node types once
+      try {
+        const available = await nlpAPI.getAvailableNodes();
+        const types = (available && available.success && available.data && available.data.types) ? available.data.types : [];
+        setAvailableNodeTypes(types);
+      } catch (err) {
+        console.warn('Could not fetch available node types:', err);
+      }
+
       const processNodes = (nodes) => {
-        // Reconstruct nodes with proper icons and structure
-        return (nodes || []).map(node => ({
-          ...node,
-          type: node.type || 'custom',
-          data: {
-            ...node.data,
-            // Reconstruct icon based on label - don't use serialized icon
-            icon: getIconForLabel(node.data?.label || node.label || ''),
-            label: node.data?.label || node.label || node.id,
+        // Reconstruct nodes with proper icons and structure and ensure supported types
+        return (nodes || []).map(node => {
+          let handler = node.type;
+          if (!handler || !types.includes(handler)) {
+            const mapped = mapLabelToHandler(node.data?.label || node.label || '');
+            handler = types.includes(mapped) ? mapped : 'dataFetcher';
           }
-        }));
+
+          const displayLabel = mapHandlerToDisplayLabel(handler);
+          return {
+            ...node,
+            type: handler,
+            data: {
+              ...node.data,
+              // Reconstruct icon based on authoritative display label
+              icon: getIconForLabel(displayLabel),
+              label: displayLabel,
+              handlerType: handler
+            }
+          };
+        });
       };
 
       // If we have full workflow data, use it directly
@@ -125,13 +146,13 @@ export default function WorkflowEditorPage() {
         setEdges(workflowData.graph.edges || []);
         return;
       }
-      
+
       // If we only have workflowId, fetch the full workflow from API
       if (workflowId && !workflowData) {
         try {
           setIsLoadingWorkflow(true);
           const response = await workflowAPI.getById(workflowId);
-          
+
           let fetchedWorkflow = null;
           if (response && response.success && response.data) {
             fetchedWorkflow = response.data;
@@ -139,7 +160,7 @@ export default function WorkflowEditorPage() {
             // Handle case where response.data is the workflow directly
             fetchedWorkflow = response.data;
           }
-          
+
           if (fetchedWorkflow) {
             setCurrentWorkflowId(fetchedWorkflow._id);
             setWorkflowName(fetchedWorkflow.name || '');
@@ -189,176 +210,212 @@ export default function WorkflowEditorPage() {
 
   // Animation control functions
   const openPromptBox = () => {
-      setShowPromptBox(true);
-      setTimeout(() => setIsPromptBoxVisible(true), 10);
+    setShowPromptBox(true);
+    setTimeout(() => setIsPromptBoxVisible(true), 10);
   };
-  
+
   const closePromptBox = () => {
-      setIsPromptBoxVisible(false);
-      setTimeout(() => setShowPromptBox(false), 300);
+    setIsPromptBoxVisible(false);
+    setTimeout(() => setShowPromptBox(false), 300);
   };
 
-  // Utility for random node addition
-  function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
+  // Handle AI Command Center prompt - call Gemini to modify the workflow
   const handleSendPrompt = async () => {
-    setPromptLoading(true);
-    await new Promise(r => setTimeout(r, 1200)); // Simulate request
-
-    // Sample from 3-5 node types and connect them
-    const types = [
-      { label: 'Web Scraper', icon: <Plug size={16} /> },
-      { label: 'AI Summarizer', icon: <Rows size={16} /> },
-      { label: 'Slack Message', icon: <MessageSquare size={16} /> },
-      { label: 'Email Service', icon: <Mail size={16} /> },
-    ];
-    let num = getRandomInt(1, 2);
-    let newNodes = [], newEdges = [];
-    for (let i = 0; i < num; i++) {
-      const idx = getRandomInt(0, types.length - 1);
-      const nodeId = `ai-${Date.now()}-${i}-${Math.round(Math.random()*1000)}`;
-      newNodes.push({
-        id: nodeId,
-        type: 'custom',
-        position: { x: 200 + i*60 + getRandomInt(-30,30), y: 250 + i*50 + getRandomInt(-30,30) },
-        data: types[idx]
-      });
-      if (i > 0) {
-        newEdges.push({
-          id: `e${newNodes[i-1].id}-${nodeId}`,
-          source: newNodes[i-1].id,
-          target: nodeId,
-          type: 'smoothstep',
-        });
-      }
+    if (!promptInput.trim()) {
+      toast.error('Please describe the workflow change you want');
+      return;
     }
-    setNodes(ns => [...ns, ...newNodes]);
-    setEdges(es => [...es, ...newEdges]);
-    setPromptLoading(false);
-    closePromptBox();
-    setPromptInput("");
+
+    setPromptLoading(true);
+
+    try {
+      // Build a prompt that includes current workflow context
+      const currentWorkflowSummary = `Current workflow: ${nodes.length} nodes (${nodes.map(n => n.data?.label).join(', ')}), ${edges.length} connections`;
+      const modificationPrompt = `${currentWorkflowSummary}. User request: ${promptInput}. Generate the modified workflow.`;
+
+      console.log('🤔 Sending workflow modification prompt to Gemini:', modificationPrompt);
+
+      // Call Gemini API to generate modified workflow
+      const response = await nlpAPI.generateWorkflow(modificationPrompt);
+
+      console.log('✅ Gemini response for modification:', response);
+
+      if (response && response.success && response.data && response.data.workflow) {
+        const modifiedWorkflow = response.data.workflow;
+
+        // Ensure we have the list of backend-supported node types
+        const availableResp = await nlpAPI.getAvailableNodes();
+        const availableTypes = (availableResp && availableResp.success && availableResp.data && availableResp.data.types) ? availableResp.data.types : [];
+
+        // Process the returned nodes and edges
+        const newNodes = (modifiedWorkflow.nodes || []).map((node, idx) => {
+          // Determine handlerKey: prefer explicit handler key if it matches available types
+          let handlerKey = node.type;
+          if (!handlerKey || !availableTypes.includes(handlerKey)) {
+            // Try mapping by label
+            const mapped = mapLabelToHandler(node.data?.label || node.label || '');
+            handlerKey = availableTypes.includes(mapped) ? mapped : 'dataFetcher';
+          }
+
+          if (!availableTypes.includes(handlerKey)) {
+            console.warn('Replacing unsupported node type with dataFetcher:', node.type, '-> dataFetcher');
+            handlerKey = 'dataFetcher';
+          }
+
+          const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+
+          return {
+            id: node.id || `ai-mod-${idx}-${Date.now()}`,
+            type: handlerKey,
+            position: node.position || { x: 100 + idx * 250, y: 100 },
+            data: {
+              label: displayLabel,
+              icon: getIconForLabel(displayLabel),
+              handlerType: handlerKey,
+              ...node.data
+            }
+          };
+        });
+
+        // Build edge list mapping labels to ids when necessary
+        const labelToId = new Map(newNodes.map(n => [n.data.label.toString().trim().toLowerCase(), n.id]));
+
+        const newEdges = (modifiedWorkflow.edges || []).map((edge, idx) => {
+          let source = edge.source || edge.from || '';
+          let target = edge.target || edge.to || '';
+
+          // If source/target are labels, map to node ids
+          if (!newNodes.find(n => n.id === source)) {
+            const maybe = ('' + source).toLowerCase().trim();
+            if (labelToId.has(maybe)) source = labelToId.get(maybe);
+          }
+          if (!newNodes.find(n => n.id === target)) {
+            const maybe = ('' + target).toLowerCase().trim();
+            if (labelToId.has(maybe)) target = labelToId.get(maybe);
+          }
+
+          return {
+            id: edge.id || `ai-edge-${idx}-${Date.now()}`,
+            source,
+            target,
+            type: edge.type || 'step'
+          };
+        }).filter(e => e.source && e.target);
+
+        setNodes(newNodes);
+        setEdges(newEdges);
+
+        toast.success(`✨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
+        console.log('✅ Workflow successfully modified with Gemini AI');
+      } else {
+        throw new Error(response?.error || 'Failed to generate modified workflow');
+      }
+    } catch (error) {
+      console.error('âŒ Error modifying workflow:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to modify workflow';
+      toast.error(errorMsg);
+    } finally {
+      setPromptLoading(false);
+      closePromptBox();
+      setPromptInput('');
+    }
   };
 
-  // Initialize with dummy workflow if AI-generated
+  // Load AI-generated workflow from Gemini API response
   useEffect(() => {
-    if (isAIGenerated && nodes.length === 0) {
-      const dummyNodes = [
-        {
-          id: 'node-1',
-          type: 'custom',
-          position: { x: 100, y: 100 },
-          data: { 
-            label: 'RSS Feed', 
-            icon: <Plug size={16} /> 
-          },
-        },
-        {
-          id: 'node-2',
-          type: 'custom',
-          position: { x: 400, y: 100 },
-          data: { 
-            label: 'AI Summarizer', 
-            icon: <Rows size={16} /> 
-          },
-        },
-        {
-          id: 'node-3',
-          type: 'custom',
-          position: { x: 100, y: 300 },
-          data: { 
-            label: 'Email Service', 
-            icon: <Mail size={16} /> 
-          },
-        },
-        {
-          id: 'node-4',
-          type: 'custom',
-          position: { x: 400, y: 300 },
-          data: { 
-            label: 'Slack Message', 
-            icon: <MessageSquare size={16} /> 
-          },
-        },
-        {
-          id: 'node-5',
-          type: 'custom',
-          position: { x: 250, y: 200 },
-          data: {
-            label: 'Scheduler',
-            icon: <Rocket size={16} />
+    const aiGeneratedWorkflow = location.state?.aiGeneratedWorkflow;
+
+    if (aiGeneratedWorkflow && nodes.length === 0) {
+      console.log('ðŸ“Š Loading AI-generated workflow from Gemini:', aiGeneratedWorkflow);
+
+      try {
+        // Robust processing: ensure nodes have ids and labels, map edges by id or label
+        const rawNodes = aiGeneratedWorkflow.nodes || [];
+        const rawEdges = aiGeneratedWorkflow.edges || [];
+
+        const processedNodes = rawNodes.map((node, idx) => {
+          const labelFromData = node?.data?.label || node.label || node.name || node.type || '';
+          let label = (labelFromData || `node-${idx}`).toString();
+          const id = node.id || `ai-node-${idx}-${Math.round(Math.random() * 10000)}`;
+          const position = node.position || { x: 100 + idx * 220, y: 80 + (idx % 3) * 120 };
+
+          // If the AI returned a handler key as the label (e.g., 'aiSummarizer'), convert to a friendly label
+          const handlerLike = (label || '').toString().trim();
+          const knownHandlers = new Set(Object.values(nodeLabelToHandler || {}));
+          if (handlerLike && knownHandlers.has(handlerLike)) {
+            label = mapHandlerToDisplayLabel(handlerLike);
           }
+
+          // If the node explicitly includes a handlerType, prefer that for mapping and display
+          if (node?.data?.handlerType && typeof node.data.handlerType === 'string') {
+            label = mapHandlerToDisplayLabel(node.data.handlerType);
+          }
+
+          return {
+            id,
+            type: node.type || 'custom',
+            position,
+            data: {
+              // Use a cleaned label for display and mapping
+              label: label,
+              icon: getIconForLabel(label),
+              handlerType: node?.data?.handlerType || mapLabelToHandler(label),
+              ...(node.data || {})
+            }
+          };
+        });
+
+        // Build lookup maps by id and by lowercased label
+        const idToNode = new Map(processedNodes.map(n => [n.id, n]));
+        const labelToId = new Map(processedNodes.map(n => [n.data.label.toString().trim().toLowerCase(), n.id]));
+
+        // Reconcile edges: support source/target or from/to and allow label references
+        const processedEdges = rawEdges.map((edge, idx) => {
+          const rawSource = edge.source || edge.from || edge.src || '';
+          const rawTarget = edge.target || edge.to || edge.dst || '';
+
+          let source = rawSource;
+          let target = rawTarget;
+
+          // If source matches an existing id, keep it; otherwise try to map by label
+          if (!idToNode.has(source)) {
+            const maybe = ('' + source).toLowerCase().trim();
+            if (labelToId.has(maybe)) source = labelToId.get(maybe);
+          }
+          if (!idToNode.has(target)) {
+            const maybe = ('' + target).toLowerCase().trim();
+            if (labelToId.has(maybe)) target = labelToId.get(maybe);
+          }
+
+          return {
+            id: edge.id || `ai-edge-${idx}-${Math.round(Math.random() * 10000)}`,
+            source,
+            target,
+            type: edge.type || 'step'
+          };
+        }).filter(e => e.source && e.target); // drop invalid edges
+
+        setNodes(processedNodes);
+        setEdges(processedEdges);
+
+        // Generate a suggested name based on metadata
+        if (aiGeneratedWorkflow.metadata?.generatedFrom) {
+          const suggestedName = `AI Generated - ${new Date().toLocaleDateString()}`;
+          setWorkflowName(suggestedName);
         }
-      ];
 
-      const dummyEdges = [
-        {
-          id: 'edge-1-2',
-          source: 'node-1',
-          target: 'node-2',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-2-3',
-          source: 'node-2',
-          target: 'node-3',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-2-4',
-          source: 'node-2',
-          target: 'node-4',
-          type: 'smoothstep',
-        },
-        {
-          id: 'edge-5-1',
-          source: 'node-5',
-          target: 'node-1',
-          type: 'smoothstep',
-        }
-      ];
+        console.log('âœ… AI workflow loaded:', {
+          nodesCount: processedNodes.length,
+          edgesCount: processedEdges.length
+        });
 
-      setNodes(dummyNodes);
-      setEdges(dummyEdges);
-    }
-  }, [isAIGenerated, nodes.length]);
-
-  // Detect if entered from /workflow/ai-prompt
-  useEffect(() => {
-    const isAIPromptMode = location?.pathname?.includes('/workflow') && location?.state?.fromAIPrompt;
-    if (isAIPromptMode && nodes.length === 0) {
-      // Generate 4-5 connected nodes
-      const types = [
-        { label: 'RSS Feed', icon: <Plug size={16} /> },
-        { label: 'AI Summarizer', icon: <Rows size={16} /> },
-        { label: 'Slack Message', icon: <MessageSquare size={16} /> },
-        { label: 'Email Service', icon: <Mail size={16} /> },
-        { label: 'Gemini API', icon: <Brain size={16} /> },
-        { label: 'GPT-4', icon: <Brain size={16} /> },
-        { label: 'AI Text Generator', icon: <Brain size={16} /> },
-        { label: 'Content Polisher', icon: <Plug size={16} /> },
-      ];
-      let nodesCount = Math.floor(Math.random()*2)+4; // 4 or 5
-      let pickedTypes = types.slice(0);
-      // Shuffle types
-      for (let i = pickedTypes.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pickedTypes[i], pickedTypes[j]] = [pickedTypes[j], pickedTypes[i]];
+        toast.success(`AI generated a workflow with ${processedNodes.length} nodes!`);
+      } catch (error) {
+        console.error('âŒ Error processing AI workflow:', error);
+        toast.error('Error loading AI-generated workflow');
       }
-      let used = pickedTypes.slice(0, nodesCount);
-      let aiNodes = used.map((t, i) => ({
-        id: `ai-gen-${i}-${Math.round(Math.random()*99999)}`,
-        type: 'custom',
-        position: { x: 170 + 220*(i%2), y: 120 + 110*Math.floor(i/2) },
-        data: { label: t, icon: getIconForLabel(t), handlerType: mapLabelToHandler(t) }
-      }));
-      let aiEdges = [];
-      for (let i = 0; i < aiNodes.length-1; ++i) aiEdges.push({ id: `aiedge${i}`, source: aiNodes[i].id, target: aiNodes[i+1].id, type: 'smoothstep' });
-      setNodes(aiNodes);
-      setEdges(aiEdges);
     }
-  // eslint-disable-next-line
-  }, [location.pathname, location.state, nodes.length]);
+  }, [location.state?.aiGeneratedWorkflow, nodes.length]);
 
   // Handler to update node configuration when saved from NodeConfigPanel
   const handleUpdateNode = (nodeId, updatedData) => {
@@ -366,12 +423,12 @@ export default function WorkflowEditorPage() {
       prevNodes.map((node) =>
         node.id === nodeId
           ? {
-              ...node,
-              data: {
-                ...node.data,
-                ...updatedData,
-              },
-            }
+            ...node,
+            data: {
+              ...node.data,
+              ...updatedData,
+            },
+          }
           : node
       )
     );
@@ -379,41 +436,26 @@ export default function WorkflowEditorPage() {
   };
 
   const addNode = (nodeType) => {
+    const handlerKey = mapLabelToHandler(nodeType);
+    const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+
     let icon;
-    switch (nodeType) {
-        case 'Web Scraper': icon = <Plug size={16} />; break;
-        case 'AI Summarizer': icon = <Rows size={16} />; break;
-        case 'Gemini API': icon = <Brain size={16} />; break;
-        case 'GPT-4': icon = <Brain size={16} />; break;
-        case 'Claude': icon = <Brain size={16} />; break;
-        case 'Twitter API': icon = <Plug size={16} />; break;
-        case 'LinkedIn API': icon = <Plug size={16} />; break;
-        case 'Instagram API': icon = <Plug size={16} />; break;
-        case 'Email Service': icon = <Mail size={16} />; break;
-        case 'Slack Message': icon = <MessageSquare size={16} />; break;
-        case 'RSS Feed': icon = <Plug size={16} />; break;
-        case 'Webhook': icon = <Plug size={16} />; break;
-        case 'Database': icon = <Plug size={16} />; break;
-        case 'File Upload': icon = <Plug size={16} />; break;
-        case 'Text Processor': icon = <Plug size={16} />; break;
-        case 'Image Processor': icon = <Plug size={16} />; break;
-        case 'Data Transformer': icon = <Plug size={16} />; break;
-        case 'Condition Check': icon = <Plug size={16} />; break;
-        case 'Delay': icon = <Plug size={16} />; break;
-        case 'Schedule': icon = <Plug size={16} />; break;
-        case 'Loop': icon = <Plug size={16} />; break;
-        case 'Merge': icon = <Plug size={16} />; break;
-        case 'AI Text Generator': icon = <Brain size={16} />; break;
-        case 'Content Polisher': icon = <Plug size={16} />; break;
-        case 'Sentiment Analyzer': icon = <Plug size={16} />; break;
-        case 'Email Generator': icon = <Plug size={16} />; break;
-        default: icon = <Plug size={16} />;
+    switch (displayLabel) {
+      case 'Web Scraper': icon = <Plug size={16} />; break;
+      case 'AI Summarizer': icon = <Rows size={16} />; break;
+      case 'AI Text Generator': icon = <Brain size={16} />; break;
+      case 'Content Polisher': icon = <Plug size={16} />; break;
+      case 'Sentiment Analyzer': icon = <Text size={16} />; break;
+      case 'Email Generator': icon = <Mail size={16} />; break;
+      case 'Slack Message': icon = <MessageSquare size={16} />; break;
+      default: icon = <Plug size={16} />;
     }
+
     const newNode = {
       id: String(Date.now() + Math.random()),
-      type: 'custom',
+      type: handlerKey,
       position: { x: 250, y: 50 + nodes.length * 50 },
-      data: { label: nodeType, icon: icon, handlerType: mapLabelToHandler(nodeType) },
+      data: { label: displayLabel, icon: icon, handlerType: handlerKey },
     };
     setNodes((prev) => [...prev, newNode]);
   };
@@ -427,22 +469,22 @@ export default function WorkflowEditorPage() {
       toast.error('Please add at least one node to test.');
       return;
     }
-    
+
     setIsTesting(true);
     setShowTestResults(true);
-    
+
     const startTime = Date.now();
-    
+
     // Simulate test execution for each node
     const testResults = [];
-    
+
     for (const node of nodes) {
       const nodeStartTime = Date.now();
       // Simulate test delay
       await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
-      
+
       const success = Math.random() > 0.2; // 80% success rate
-      
+
       // Include node configuration in the test result
       const nodeConfig = {
         credentials: node.data?.credentials || {},
@@ -466,13 +508,13 @@ export default function WorkflowEditorPage() {
         nodeConfig: nodeConfig,
       });
     }
-    
+
     const totalDuration = Date.now() - startTime;
-    
+
     // Save test results to backend
     try {
       let workflowId = currentWorkflowId;
-      
+
       // If no workflow exists yet, create one automatically for testing
       if (!workflowId && nodes.length > 0) {
         const ownerId = getUserId();
@@ -491,11 +533,11 @@ export default function WorkflowEditorPage() {
           ownerId: ownerId,
           description: `Auto-created for testing with ${nodes.length} nodes`,
         };
-        
+
         console.log('Creating workflow for testing:', workflowData);
         const response = await workflowAPI.create(workflowData);
         console.log('Workflow created:', response);
-        
+
         // Handle ApiResponse format: response is { success, data, message }
         // The workflow object is in response.data
         if (response && response.success && response.data) {
@@ -508,7 +550,7 @@ export default function WorkflowEditorPage() {
           throw new Error('Failed to create workflow: ' + JSON.stringify(response));
         }
       }
-      
+
       if (workflowId) {
         // Determine overall status - include both passed and failed tests
         const allCompleted = testResults.every(r => r.status === 'completed');
@@ -529,11 +571,11 @@ export default function WorkflowEditorPage() {
           startedAt: new Date(startTime).toISOString(),
           completedAt: new Date().toISOString(),
         };
-        
+
         console.log('Saving execution log:', executionData);
         const executionResponse = await executionAPI.create(executionData);
         console.log('Execution saved:', executionResponse);
-        
+
         // Handle ApiResponse format
         if (executionResponse && executionResponse.success) {
           console.log('Execution saved successfully to logs');
@@ -546,7 +588,7 @@ export default function WorkflowEditorPage() {
         console.error('No workflowId available to save execution');
         toast.warning('Test completed but could not save to logs. Please save the workflow first.');
       }
-      
+
       // Convert to display format
       const displayResults = testResults.map(r => ({
         id: r.nodeId,
@@ -556,15 +598,15 @@ export default function WorkflowEditorPage() {
         duration: Date.parse(r.endTime) - Date.parse(r.startTime),
         timestamp: r.startTime,
       }));
-      
+
       setTestResults(displayResults);
       setIsTesting(false);
-      
+
       // Success message is now shown in the save section above
     } catch (error) {
       console.error('Error saving test results:', error);
       console.error('Error details:', error.response?.data || error.message);
-      
+
       // Still show results even if saving failed
       const displayResults = testResults.map(r => ({
         id: r.nodeId,
@@ -576,7 +618,7 @@ export default function WorkflowEditorPage() {
       }));
       setTestResults(displayResults);
       setIsTesting(false);
-      
+
       toast.error(`Test completed but failed to save to logs: ${error.message || 'Unknown error'}. Check console for details.`);
     }
   };
@@ -614,7 +656,7 @@ export default function WorkflowEditorPage() {
             workflowId: currentWorkflowId,
             status: result.status || (result.failedNode ? 'failed' : 'completed'),
             nodeLogs: result.logs || [],
-            duration: typeof result.executionTime === 'string' ? Number((result.executionTime||'0').replace(/[^0-9]/g, '')) : result.executionTime || 0,
+            duration: typeof result.executionTime === 'string' ? Number((result.executionTime || '0').replace(/[^0-9]/g, '')) : result.executionTime || 0,
             runId: result.runId
           };
           try {
@@ -670,13 +712,13 @@ export default function WorkflowEditorPage() {
 
       console.log('Saving workflow:', workflowData);
       let savedWorkflow;
-      
+
       if (currentWorkflowId) {
         // Update existing workflow
         console.log('Updating existing workflow:', currentWorkflowId);
         const response = await workflowAPI.update(currentWorkflowId, workflowData);
         console.log('Update response:', response);
-        
+
         // Handle ApiResponse format: response is { success, data, message }
         if (response && response.success && response.data) {
           savedWorkflow = response.data;
@@ -688,7 +730,7 @@ export default function WorkflowEditorPage() {
         console.log('Creating new workflow');
         const response = await workflowAPI.create(workflowData);
         console.log('Create response:', response);
-        
+
         // Handle ApiResponse format: response is { success, data, message }
         if (response && response.success && response.data) {
           savedWorkflow = response.data;
@@ -699,17 +741,17 @@ export default function WorkflowEditorPage() {
       }
 
       console.log('Workflow saved successfully:', savedWorkflow);
-      
+
       // Show success message
       toast.success('Workflow saved successfully! Redirecting...');
-      
+
       // Navigate to CompleteWorkflow page after successful save
       setTimeout(() => {
-        navigate('/workflow/complete', { 
-          state: { 
+        navigate('/workflow/complete', {
+          state: {
             workflowId: savedWorkflow._id,
-            workflowData: savedWorkflow 
-          } 
+            workflowData: savedWorkflow
+          }
         });
       }, 500);
     } catch (error) {
@@ -739,9 +781,9 @@ export default function WorkflowEditorPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <Brain className="w-8 h-8 text-blue-400" />
-              <span className="text-2xl font-bold text-blue-400">
-                {workflowName || 'New Workflow'}
+              <NoBrainLogo />
+              <span className="text-xl font-semibold text-gray-300">
+                / {workflowName || 'New Workflow'}
               </span>
               <div className="ml-6 w-72 flex items-center">
                 <input
@@ -750,13 +792,13 @@ export default function WorkflowEditorPage() {
                   value={workflowName}
                   maxLength={20}
                   onChange={e => setWorkflowName(e.target.value)}
-                  className="bg-transparent border border-gray-700 rounded-md px-3 py-1.5 w-full text-white placeholder:text-gray-400 focus:outline-none focus:border-gray-600 text-base" 
+                  className="bg-transparent border border-gray-700 rounded-md px-3 py-1.5 w-full text-white placeholder:text-gray-400 focus:outline-none focus:border-gray-600 text-base"
                 />
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
-              {/* 🚀 ENHANCED PROMPT BUTTON START (Blue Theme) 🚀 */}
+              {/* ðŸš€ ENHANCED PROMPT BUTTON START (Blue Theme) ðŸš€ */}
               <Button
                 variant="outline"
                 size="sm"
@@ -776,7 +818,7 @@ export default function WorkflowEditorPage() {
                 <Sparkles className="w-4 h-4 mr-2" />
                 AI Prompt
               </Button>
-              {/* 🚀 ENHANCED PROMPT BUTTON END 🚀 */}
+              {/* ðŸš€ ENHANCED PROMPT BUTTON END ðŸš€ */}
               <Button
                 variant="outline"
                 size="sm"
@@ -805,7 +847,7 @@ export default function WorkflowEditorPage() {
                 )}
                 Run
               </Button>
-              
+
               <Button
                 size="sm"
                 className="bg-gray-700 hover:bg-gray-600 text-white transition-colors duration-200"
@@ -839,7 +881,7 @@ export default function WorkflowEditorPage() {
         <ReactFlowProvider>
           <Sidebar addNode={addNode} />
           <div className="flex-1 relative">
-            
+
             <WorkflowCanvas
               nodes={nodes}
               setNodes={setNodes}
@@ -870,7 +912,7 @@ export default function WorkflowEditorPage() {
                 onClick={() => setShowTestResults(false)}
                 className="text-gray-400 hover:text-white"
               >
-                ×
+                Ã—
               </Button>
             </div>
 
@@ -895,7 +937,7 @@ export default function WorkflowEditorPage() {
                   <CheckCircle className="w-5 h-5 text-green-400" />
                   <span className="text-gray-300">Test completed</span>
                 </div>
-                
+
                 {testResults.map((result) => (
                   <Card key={result.id} className="p-4 bg-gray-800/50 border-gray-600">
                     <div className="flex items-start gap-3">
@@ -908,9 +950,8 @@ export default function WorkflowEditorPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="text-white font-medium text-sm">{result.name}</h3>
-                        <p className={`text-xs mt-1 ${
-                          result.status === 'success' ? 'text-green-400' : 'text-red-400'
-                        }`}>
+                        <p className={`text-xs mt-1 ${result.status === 'success' ? 'text-green-400' : 'text-red-400'
+                          }`}>
                           {result.message}
                         </p>
                         <p className="text-gray-500 text-xs mt-2">
@@ -935,20 +976,20 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
       )}
-      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) 🚀 */}
+      {/* ðŸš€ ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) ðŸš€ */}
       {/* Run Results Sidebar */}
       {showRunResults && runResults && (
         <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Run Results • {runResults.runId}</h2>
+              <h2 className="text-xl font-bold text-white">Run Results â€¢ {runResults.runId}</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowRunResults(false)}
                 className="text-gray-400 hover:text-white"
               >
-                ×
+                Ã—
               </Button>
             </div>
 
@@ -961,7 +1002,7 @@ export default function WorkflowEditorPage() {
                   const isSuccess = log.status === 'success' || log.status === 'completed' || log.success === true;
                   const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
                   const messageText = log.error || log.message || (isSuccess ? 'Completed' : 'Failed');
-                  
+
                   return (
                     <Card key={idx} className="p-3 bg-gray-800/50 rounded-lg border-gray-600 mb-2">
                       <div className="flex items-start gap-3">
@@ -1011,8 +1052,8 @@ export default function WorkflowEditorPage() {
             opacity: isPromptBoxVisible ? 1 : 0,
             transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.5, 1.2), opacity 0.3s ease-out',
             // Custom box shadow for depth
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)', 
-            cursor: dragging?'move':undefined,
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+            cursor: dragging ? 'move' : undefined,
             userSelect: 'none',
           }}
           onMouseDown={onPromptMouseDown}
@@ -1028,16 +1069,16 @@ export default function WorkflowEditorPage() {
               <span className="font-extrabold text-xl text-gray-300 flex items-center gap-2">
                 <Brain className="w-5 h-5" /> AI Command Center
               </span>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="text-gray-300 hover:text-white transition-colors p-1 h-auto" 
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-gray-300 hover:text-white transition-colors p-1 h-auto"
                 onClick={closePromptBox}
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            
+
             <label htmlFor="ai-prompt-input" className="text-gray-300 text-sm mb-2 font-semibold block">Describe the desired workflow change:</label>
             <textarea
               id="ai-prompt-input"
@@ -1068,19 +1109,19 @@ export default function WorkflowEditorPage() {
             >
               {promptLoading ? (
                 <span className="flex items-center">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin"/>Processing Command...
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing Command...
                 </span>
               ) : (
                 <span className="flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Generate/Modify Workflow
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Generate/Modify Workflow
                 </span>
               )}
             </Button>
           </Card>
         </div>
       )}
-      {/* 🚀 ENHANCED PROMPT DRAGGABLE BOX END 🚀 */}
+      {/* ðŸš€ ENHANCED PROMPT DRAGGABLE BOX END ðŸš€ */}
     </div>
   );
 }

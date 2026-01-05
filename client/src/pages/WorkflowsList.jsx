@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackgroundBeams } from '../components/ui/background-beams';
+import NoBrainLogo from '../components/NoBrainLogo';
 import {
     Rocket,
     Plus,
@@ -20,10 +21,10 @@ import {
     Trash2,
     Brain,
     ArrowLeftCircle,
-    X, 
-    ChevronRight, 
+    X,
+    ChevronRight,
     Activity,
-    GitBranch 
+    GitBranch
 } from 'lucide-react';
 
 // =======================================================================
@@ -150,7 +151,7 @@ const ongoingWorkflows = [
         id: 3,
         name: 'Content Aggregator',
         symbol: 'CONT',
-        status: 'error', 
+        status: 'error',
         platform: 'Multiple',
         type: 'Content',
         nextRun: '30 minutes',
@@ -187,7 +188,7 @@ const ongoingWorkflows = [
             {
                 id: 'review',
                 name: 'Filtering',
-                status: 'error', 
+                status: 'error',
                 icon: <AlertCircle className="w-4 h-4" />,
                 timestamp: '11:47',
                 description: 'Filtering content failed',
@@ -335,12 +336,12 @@ const WorkflowCard = ({ workflow, onSelect }) => {
             default: return 'bg-gray-500';
         }
     };
-    
+
     const changeColor = workflow.change.startsWith('+') ? 'text-green-400' : 'text-red-400';
     const arrowIcon = workflow.change.startsWith('+') ? '↑' : '↓';
 
     return (
-        <div 
+        <div
             className="group relative bg-gray-900/50 backdrop-blur-md rounded-xl p-5 
                        border border-transparent hover:border-purple-600/70 
                        transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-purple-900/20 
@@ -385,24 +386,24 @@ const WorkflowCard = ({ workflow, onSelect }) => {
 
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-800">
                 <div className="flex gap-2">
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => { e.stopPropagation(); console.log('Toggling status'); }}
                         className="!h-8 !px-2.5 text-xs border-gray-700 hover:border-green-500"
                     >
                         {workflow.status === 'running' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     </Button>
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => { e.stopPropagation(); console.log('Editing workflow:', workflow.id); }}
                         className="!h-8 !px-2.5 text-xs border-gray-700 hover:border-blue-500"
                     >
                         <Edit className="w-4 h-4" />
                     </Button>
                 </div>
-                
+
                 <span className="flex items-center text-sm font-semibold text-purple-400 group-hover:text-purple-300 transition-colors">
                     View Details
                     <ChevronRight className="w-5 h-5 ml-1 transition-transform group-hover:translate-x-1" />
@@ -421,7 +422,7 @@ const MetricTile = ({ label, value, color, icon }) => {
         case 'purple': colorClass = 'text-purple-400'; hoverClass = 'hover:border-purple-500/50 hover:shadow-purple-900'; break;
         default: colorClass = 'text-gray-400'; hoverClass = 'hover:border-gray-500/50 hover:shadow-gray-900';
     }
-    
+
     return (
         <div className={`p-4 rounded-xl bg-gray-800/70 border border-gray-700/50 cursor-pointer 
                         transition-all duration-300 transform hover:scale-[1.03] ${hoverClass} shadow-md`}>
@@ -451,19 +452,18 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
             default: return 'bg-gray-700 border-gray-500';
         }
     };
-    
+
     // Style for the modal border based on workflow status
-    const modalStatusBorder = status === 'error' 
-        ? 'border-red-500/70 shadow-red-500/40' 
+    const modalStatusBorder = status === 'error'
+        ? 'border-red-500/70 shadow-red-500/40'
         : 'border-purple-500/70 shadow-purple-500/40';
 
     return (
         // Backdrop with blur, opacity fade, and new centering classes
-        <div 
-            className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
-                selectedWorkflow ? 'opacity-100 bg-black/80 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
-            }`}
-            onClick={onClose} 
+        <div
+            className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${selectedWorkflow ? 'opacity-100 bg-black/80 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
+                }`}
+            onClick={onClose}
         >
             {/* Modal Panel - Centered, fixed size, square-like ratio, and drop animation */}
             <div
@@ -471,7 +471,7 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                             bg-gray-900 border-4 ${modalStatusBorder} shadow-2xl 
                             transition-all duration-500 ease-out 
                             transform ${selectedWorkflow ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}`}
-                onClick={e => e.stopPropagation()} 
+                onClick={e => e.stopPropagation()}
             >
                 {/* Header and Close Button */}
                 <div className="flex justify-between items-start border-b border-purple-900 pb-4 mb-6 sticky top-0 bg-gray-900 z-20">
@@ -483,44 +483,44 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                             {status.toUpperCase()} Stream Details
                         </p>
                     </div>
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         onClick={onClose}
                         className="!h-10 !w-10 p-0 border-gray-700 hover:border-red-500 text-gray-400 hover:text-red-400"
                     >
                         <X className="w-6 h-6" />
                     </Button>
                 </div>
-                
+
                 {/* Key Metrics Grid - Interactive Tiles */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-                    <MetricTile 
-                        label="Success Rate" 
-                        value={`${successRate}%`} 
-                        color="green" 
-                        icon={<CheckCircle className="w-5 h-5" />} 
+                    <MetricTile
+                        label="Success Rate"
+                        value={`${successRate}%`}
+                        color="green"
+                        icon={<CheckCircle className="w-5 h-5" />}
                     />
-                    <MetricTile 
-                        label="Avg. Duration" 
-                        value={estimatedTime} 
-                        color="blue" 
-                        icon={<Clock className="w-5 h-5" />} 
+                    <MetricTile
+                        label="Avg. Duration"
+                        value={estimatedTime}
+                        color="blue"
+                        icon={<Clock className="w-5 h-5" />}
                     />
-                    <MetricTile 
-                        label="Last Run" 
-                        value={lastRun} 
-                        color="gray" 
-                        icon={<Zap className="w-5 h-5" />} 
+                    <MetricTile
+                        label="Last Run"
+                        value={lastRun}
+                        color="gray"
+                        icon={<Zap className="w-5 h-5" />}
                     />
-                    <MetricTile 
-                        label="Market Value" 
-                        value={marketCap} 
-                        color="purple" 
-                        icon={<Activity className="w-5 h-5" />} 
+                    <MetricTile
+                        label="Market Value"
+                        value={marketCap}
+                        color="purple"
+                        icon={<Activity className="w-5 h-5" />}
                     />
                 </div>
-                
+
                 {/* Linear Chain/Timeline View */}
                 <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400 border-b border-gray-800 pb-2 mb-4">
                     <GitBranch className="inline-block w-5 h-5 mr-2" /> Execution Timeline
@@ -530,18 +530,16 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                         <div key={step.id} className="flex relative">
                             {/* Vertical Connector Line */}
                             {index < linearSteps.length - 1 && (
-                                <div className={`absolute left-[20px] top-10 w-0.5 h-full transition-colors duration-500 ${
-                                    step.status === 'completed' ? 'bg-green-600/70' : 
+                                <div className={`absolute left-[20px] top-10 w-0.5 h-full transition-colors duration-500 ${step.status === 'completed' ? 'bg-green-600/70' :
                                     step.status === 'running' ? 'bg-blue-600/70' : 'bg-gray-700/50'
-                                }`}></div>
+                                    }`}></div>
                             )}
 
                             {/* Step Indicator with Glow */}
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center z-10 mr-4 transition-all duration-300 border-2 ${getStepStatusClasses(step.status)} shadow-lg ${
-                                step.status === 'running' ? 'shadow-blue-500/50' :
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center z-10 mr-4 transition-all duration-300 border-2 ${getStepStatusClasses(step.status)} shadow-lg ${step.status === 'running' ? 'shadow-blue-500/50' :
                                 step.status === 'error' ? 'shadow-red-500/50' :
-                                'shadow-transparent'
-                            }`}>
+                                    'shadow-transparent'
+                                }`}>
                                 {step.icon}
                             </div>
 
@@ -560,7 +558,7 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
 
                 {/* Footer Actions */}
                 <div className="p-4 -mx-8 mt-4 border-t border-purple-900 bg-gray-900 sticky bottom-0 z-20">
-                    <Button 
+                    <Button
                         onClick={() => { console.log('Re-running workflow'); onClose(); }}
                         className="w-full bg-green-600 hover:bg-green-700 shadow-lg shadow-green-500/25"
                     >
@@ -588,7 +586,7 @@ export default function WorkflowsListPage() {
     }, []);
 
     const handleBackToDashboard = () => {
-        navigate('/dashboard'); 
+        navigate('/dashboard');
         console.log('Navigating back to dashboard');
     };
 
@@ -603,7 +601,7 @@ export default function WorkflowsListPage() {
                     <svg width="100%" height="100%" className="animate-pulse">
                         <defs>
                             <pattern id="terminalGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#3B82F6" strokeWidth="0.5"/>
+                                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#3B82F6" strokeWidth="0.5" />
                             </pattern>
                         </defs>
                         <rect width="100%" height="100%" fill="url(#terminalGrid)" />
@@ -615,10 +613,7 @@ export default function WorkflowsListPage() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-lg flex items-center justify-center">
-                                <Brain className="w-5 h-5 text-white" />
-                            </div>
-                            <span className="text-2xl font-bold text-purple-300">NoBrain</span>
+                            <NoBrainLogo />
                         </div>
                         <div className="flex items-center gap-3">
                             <Button
@@ -650,22 +645,22 @@ export default function WorkflowsListPage() {
                     {/* Workflow List using the enhanced Card component */}
                     <div className="space-y-5">
                         {ongoingWorkflows.map((workflow) => (
-                            <WorkflowCard 
-                                key={workflow.id} 
-                                workflow={workflow} 
-                                onSelect={handleSelectWorkflow} 
+                            <WorkflowCard
+                                key={workflow.id}
+                                workflow={workflow}
+                                onSelect={handleSelectWorkflow}
                             />
                         ))}
                     </div>
                 </div>
             </main>
-            
+
             {/* The Centered Modal */}
-            <WorkflowDetailModal 
-                selectedWorkflow={selectedWorkflow} 
-                onClose={handleCloseSidebar} 
+            <WorkflowDetailModal
+                selectedWorkflow={selectedWorkflow}
+                onClose={handleCloseSidebar}
             />
-            
+
         </div>
     );
 }

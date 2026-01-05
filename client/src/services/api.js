@@ -105,10 +105,10 @@ export const executionAPI = {
    */
   getAllLogs: async () => {
     // This is an assumed endpoint. Adjust if your backend route is different.
-    const response = await apiClient.get('/executions'); 
+    const response = await apiClient.get('/executions');
     return response.data; // Assuming backend sends { success: true, data: [logs] }
   },
-  
+
   /**
    * This function might be used by your Logs page.
    * It's kept here for compatibility, but `runTest` in Workflow.jsx

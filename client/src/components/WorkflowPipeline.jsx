@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
   Clock,
   Activity,
   Zap,
@@ -31,7 +31,7 @@ export default function WorkflowPipeline({ workflow }) {
   const [activeSteps, setActiveSteps] = useState([]);
   const [executionOrder, setExecutionOrder] = useState([]);
   const [executionLog, setExecutionLog] = useState([]);
-  
+
   // Pan and Zoom state
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -53,8 +53,8 @@ export default function WorkflowPipeline({ workflow }) {
         }
         const response = await executionAPI.getByWorkflow(workflow._id, { limit: 1 });
         if (response && response.success && response.data) {
-          const executions = Array.isArray(response.data) 
-            ? response.data 
+          const executions = Array.isArray(response.data)
+            ? response.data
             : (response.data.executions || []);
           if (executions.length > 0) {
             setExecutionStatus(executions[0]);
@@ -93,9 +93,9 @@ export default function WorkflowPipeline({ workflow }) {
   // Simple grid-based layout to ensure no overlapping
   const { nodePositions, containerWidth, containerHeight } = useMemo(() => {
     if (nodes.length === 0) {
-      return { 
-        nodePositions: new Map(), 
-        containerWidth: 1000, 
+      return {
+        nodePositions: new Map(),
+        containerWidth: 1000,
         containerHeight: 500
       };
     }
@@ -108,14 +108,14 @@ export default function WorkflowPipeline({ workflow }) {
 
     // Simple grid layout - 3 nodes per row maximum
     const nodesPerRow = Math.min(3, Math.ceil(Math.sqrt(nodes.length)));
-    
+
     nodes.forEach((node, index) => {
       const row = Math.floor(index / nodesPerRow);
       const col = index % nodesPerRow;
-      
+
       const x = col * horizontalSpacing;
       const y = row * verticalSpacing;
-      
+
       positions.set(node.id, { x, y });
     });
 
@@ -124,7 +124,7 @@ export default function WorkflowPipeline({ workflow }) {
     const containerWidth = Math.min(nodesPerRow * horizontalSpacing, 1200);
     const containerHeight = Math.max(rows * verticalSpacing, 400);
 
-    return { 
+    return {
       nodePositions: positions,
       containerWidth,
       containerHeight
@@ -136,39 +136,39 @@ export default function WorkflowPipeline({ workflow }) {
     if (nodes.length === 0) {
       return { executionOrder: [] };
     }
-    
+
     const nodeMap = new Map();
     const inDegree = new Map();
-    
+
     nodes.forEach(node => {
       nodeMap.set(node.id, node);
       inDegree.set(node.id, 0);
     });
-    
+
     edges.forEach(edge => {
       const current = inDegree.get(edge.target) || 0;
       inDegree.set(edge.target, current + 1);
     });
-    
+
     const order = [];
     const queue = [];
     const visited = new Set();
-    
+
     // Find starting nodes
     inDegree.forEach((degree, nodeId) => {
       if (degree === 0) {
         queue.push(nodeId);
       }
     });
-    
+
     // Build execution order
     while (queue.length > 0) {
       const nodeId = queue.shift();
       if (visited.has(nodeId)) continue;
-      
+
       visited.add(nodeId);
       order.push(nodeId);
-      
+
       edges.forEach(edge => {
         if (edge.source === nodeId) {
           const newDegree = (inDegree.get(edge.target) || 0) - 1;
@@ -179,13 +179,13 @@ export default function WorkflowPipeline({ workflow }) {
         }
       });
     }
-    
+
     nodes.forEach(node => {
       if (!visited.has(node.id)) {
         order.push(node.id);
       }
     });
-    
+
     return { executionOrder: order };
   }, [nodes, edges]);
 
@@ -194,7 +194,7 @@ export default function WorkflowPipeline({ workflow }) {
     if (nodes.length === 0 || loading || order.length === 0) return;
 
     setExecutionOrder(order);
-    
+
     const initialStatuses = {};
     nodes.forEach(node => {
       initialStatuses[node.id] = NODE_STATUS.PENDING;
@@ -210,7 +210,7 @@ export default function WorkflowPipeline({ workflow }) {
     const simulateExecution = () => {
       const newStatuses = {};
       const newLog = [];
-      
+
       // Initialize all nodes
       nodes.forEach(node => {
         newStatuses[node.id] = NODE_STATUS.PENDING;
@@ -220,7 +220,7 @@ export default function WorkflowPipeline({ workflow }) {
       completedSteps.forEach(nodeId => {
         const node = nodes.find(n => n.id === nodeId);
         if (!node) return;
-        
+
         if (!nodeFailures.has(nodeId)) {
           nodeFailures.set(nodeId, Math.random() < 0.1);
         }
@@ -245,7 +245,7 @@ export default function WorkflowPipeline({ workflow }) {
 
       setNodeStatuses(newStatuses);
       setActiveSteps([...runningSteps]);
-      
+
       // Update log
       if (newLog.length > 0) {
         setExecutionLog(prev => [...prev, ...newLog].slice(-15));
@@ -257,11 +257,11 @@ export default function WorkflowPipeline({ workflow }) {
         runningSteps.forEach(nodeId => {
           completedSteps.push(nodeId);
         });
-        
+
         // Start next batch of steps
         runningSteps = [];
         const batchSize = Math.min(2, order.length - stepIndex);
-        
+
         for (let i = 0; i < batchSize && stepIndex < order.length; i++) {
           runningSteps.push(order[stepIndex]);
           stepIndex++;
@@ -281,7 +281,7 @@ export default function WorkflowPipeline({ workflow }) {
             }].slice(-15));
           }
         });
-        
+
         // Add cycle completion message
         setExecutionLog(prev => [...prev, {
           nodeId: 'cycle',
@@ -290,7 +290,7 @@ export default function WorkflowPipeline({ workflow }) {
           timestamp: new Date(),
           message: 'Another yet to trigger...'
         }].slice(-15));
-        
+
         // Reset for next cycle
         setTimeout(() => {
           completedSteps = [];
@@ -299,15 +299,15 @@ export default function WorkflowPipeline({ workflow }) {
           nodeFailures.clear();
           cycleComplete = false;
           setSimulationCycle(prev => prev + 1);
-        }, 1000);
+        }, 3000);
       }
 
       if (!cycleComplete) {
-        setTimeout(simulateExecution, 1500);
+        setTimeout(simulateExecution, 2500);
       }
     };
 
-    const startTimeout = setTimeout(simulateExecution, 500);
+    const startTimeout = setTimeout(simulateExecution, 1000);
     return () => clearTimeout(startTimeout);
   }, [nodes, edges, loading, simulationCycle, order]);
 
@@ -457,7 +457,7 @@ export default function WorkflowPipeline({ workflow }) {
       </div>
 
       {/* Canvas Layout with Status Cards - Pan & Zoom */}
-      <div 
+      <div
         ref={containerRef}
         className="relative bg-gray-950/50 rounded-lg border border-gray-700/50 overflow-hidden min-h-[400px] custom-scrollbar"
         onMouseDown={handleMouseDown}
@@ -497,7 +497,7 @@ export default function WorkflowPipeline({ workflow }) {
         </div>
 
         {/* Status Cards Container - Transformable with Pan & Zoom */}
-        <div 
+        <div
           className="relative w-full h-full pan-area"
           style={{
             width: '100%',
@@ -524,9 +524,9 @@ export default function WorkflowPipeline({ workflow }) {
               const nodeLabel = node.data?.label || node.id;
               const statusColors = getStatusColor(nodeStatus);
               const isActive = activeSteps.includes(node.id);
-              const progress = nodeStatus === NODE_STATUS.COMPLETED ? 100 : 
-                             nodeStatus === NODE_STATUS.RUNNING ? 75 : 0;
-            
+              const progress = nodeStatus === NODE_STATUS.COMPLETED ? 100 :
+                nodeStatus === NODE_STATUS.RUNNING ? 75 : 0;
+
               return (
                 <div
                   key={node.id}
@@ -551,10 +551,10 @@ export default function WorkflowPipeline({ workflow }) {
                     <div className="flex items-center gap-2">
                       <div className={`
                         w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs
-                        ${nodeStatus === NODE_STATUS.RUNNING ? 'bg-yellow-500 text-white' : 
+                        ${nodeStatus === NODE_STATUS.RUNNING ? 'bg-yellow-500 text-white' :
                           nodeStatus === NODE_STATUS.COMPLETED ? 'bg-green-500 text-white' :
-                          nodeStatus === NODE_STATUS.FAILED ? 'bg-red-500 text-white' :
-                          'bg-gray-700 text-gray-400'}
+                            nodeStatus === NODE_STATUS.FAILED ? 'bg-red-500 text-white' :
+                              'bg-gray-700 text-gray-400'}
                       `}>
                         {nodeStatus === NODE_STATUS.RUNNING && <Loader2 className="w-4 h-4 animate-spin" />}
                         {nodeStatus === NODE_STATUS.COMPLETED && <CheckCircle className="w-4 h-4" />}
@@ -589,8 +589,8 @@ export default function WorkflowPipeline({ workflow }) {
                           h-full rounded-full transition-all duration-500
                           ${nodeStatus === NODE_STATUS.COMPLETED ? 'bg-green-500' :
                             nodeStatus === NODE_STATUS.FAILED ? 'bg-red-500' :
-                            nodeStatus === NODE_STATUS.RUNNING ? 'bg-yellow-500' :
-                            'bg-gray-600'}
+                              nodeStatus === NODE_STATUS.RUNNING ? 'bg-yellow-500' :
+                                'bg-gray-600'}
                         `}
                         style={{ width: `${progress}%` }}
                       />
@@ -622,8 +622,8 @@ export default function WorkflowPipeline({ workflow }) {
                   w-1.5 h-1.5 rounded-full
                   ${log.status === NODE_STATUS.COMPLETED ? 'bg-green-500' :
                     log.status === NODE_STATUS.FAILED ? 'bg-red-500' :
-                    log.status === NODE_STATUS.RUNNING ? 'bg-yellow-500 animate-pulse' :
-                    'bg-gray-500'}
+                      log.status === NODE_STATUS.RUNNING ? 'bg-yellow-500 animate-pulse' :
+                        'bg-gray-500'}
                 `} />
                 <span className="text-gray-400 font-mono">
                   {log.timestamp.toLocaleTimeString()}
@@ -640,8 +640,8 @@ export default function WorkflowPipeline({ workflow }) {
                   ml-auto font-semibold
                   ${log.status === NODE_STATUS.COMPLETED ? 'text-green-400' :
                     log.status === NODE_STATUS.FAILED ? 'text-red-400' :
-                    log.status === NODE_STATUS.RUNNING ? 'text-yellow-400' :
-                    'text-gray-400'}
+                      log.status === NODE_STATUS.RUNNING ? 'text-yellow-400' :
+                        'text-gray-400'}
                 `}>
                   {log.status.toUpperCase()}
                 </span>

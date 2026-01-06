@@ -1,4 +1,3 @@
-
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -13,9 +12,10 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useCallback, useMemo, useState } from 'react';
-import { mapLabelToHandler, mapHandlerToDisplayLabel } from '../services/nodeTypeMap';
+import { getNodeByHandler, getIconForHandler, getAvailableHandlers, isValidHandler, getDisplayLabel } from '../services/nodeRegistry.jsx';
+import { mapLabelToHandler } from '../services/nodeTypeMap';
 import { Card } from '../components/ui/card';
-import { Plug, Rows, Edit, MessageSquare, Bot, Trash2, Text, Mail, X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
 
 // --- Custom Node Component ---
@@ -64,13 +64,9 @@ const CustomNode = ({ id, data, selected = false }) => {
   );
 };
 
-import { nodeLabelToHandler } from '../services/nodeTypeMap';
-
-// Build nodeTypes mapping dynamically so that known handler keys use the CustomNode renderer
-const knownHandlersCanvas = new Set(Object.values(nodeLabelToHandler));
-['twitterApi','s3Upload','smsSender','googleSheets','calendarEvent','pagerDuty','emailGenerator','database','fileUpload'].forEach(h => knownHandlersCanvas.add(h));
-
-const nodeTypes = Array.from(knownHandlersCanvas).reduce((acc, handler) => {
+// Build nodeTypes mapping dynamically from the centralized registry
+const allHandlers = getAvailableHandlers();
+const nodeTypes = allHandlers.reduce((acc, handler) => {
   acc[handler] = CustomNode;
   return acc;
 }, { custom: CustomNode });
@@ -114,20 +110,15 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
 
     const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 
-    const handlerKey = mapLabelToHandler(type);
-    const displayLabel = mapHandlerToDisplayLabel(handlerKey);
-
-    let icon = <Plug size={16} />;
-    switch (displayLabel) {
-      case 'Web Scraper': icon = <Plug size={16} />; break;
-      case 'AI Summarizer': icon = <Rows size={16} />; break;
-      case 'Slack Message': icon = <MessageSquare size={16} />; break;
-      case 'Content Polisher': icon = <Edit size={16} />; break;
-      case 'AI Text Generator': icon = <Bot size={16} />; break;
-      case 'Sentiment Analyzer': icon = <Text size={16} />; break;
-      case 'Email Generator': icon = <Mail size={16} />; break;
-      default: icon = <Plug size={16} />;
+    // type is now a handler key from the sidebar (or fallback to label mapping)
+    let handlerKey = type;
+    if (!isValidHandler(type)) {
+      handlerKey = mapLabelToHandler(type);
     }
+
+    const nodeData = getNodeByHandler(handlerKey);
+    const displayLabel = nodeData?.label || getDisplayLabel(handlerKey);
+    const icon = getIconForHandler(handlerKey, 16);
 
     const newNode = {
       id: `${handlerKey}-${+new Date()}`,
@@ -142,7 +133,7 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
       selectable: true,
     };
 
-    console.log('Creating new node with onDelete:', !!onDeleteNode); // Debug log
+    console.log('Creating new node:', newNode.data.label);
     setNodes((nds) => nds.concat(newNode));
   }, [reactFlowInstance, setNodes, onDeleteNode]);
 

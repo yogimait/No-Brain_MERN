@@ -33,6 +33,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
 import { workflowAPI, executionAPI, nlpAPI } from '../services/api';
 import { mapLabelToHandler, mapHandlerToDisplayLabel, nodeLabelToHandler } from '../services/nodeTypeMap';
+import { getNodeByHandler, getIconForHandler, getDisplayLabel, isValidHandler } from '../services/nodeRegistry.jsx';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function WorkflowEditorPage() {
@@ -105,31 +106,36 @@ export default function WorkflowEditorPage() {
       const workflowData = location.state?.workflowData;
       const workflowId = location.state?.workflowId;
 
+      console.log('📂 Loading workflow:', { workflowId, hasWorkflowData: !!workflowData });
+
       // fetch available node types once
+      let types = [];
       try {
         const available = await nlpAPI.getAvailableNodes();
-        const types = (available && available.success && available.data && available.data.types) ? available.data.types : [];
+        types = (available && available.success && available.data && available.data.types) ? available.data.types : [];
         setAvailableNodeTypes(types);
       } catch (err) {
         console.warn('Could not fetch available node types:', err);
       }
 
       const processNodes = (nodes) => {
-        // Reconstruct nodes with proper icons and structure and ensure supported types
+        console.log('🔄 Processing nodes:', nodes?.length || 0);
+        // Reconstruct nodes with proper icons and structure
         return (nodes || []).map(node => {
-          let handler = node.type;
-          if (!handler || !types.includes(handler)) {
+          // Get the handler type - use existing type or map from label
+          let handler = node.type || node.data?.handlerType;
+          if (!handler || (types.length > 0 && !types.includes(handler))) {
             const mapped = mapLabelToHandler(node.data?.label || node.label || '');
-            handler = types.includes(mapped) ? mapped : 'dataFetcher';
+            handler = (types.length === 0 || types.includes(mapped)) ? mapped : 'dataFetcher';
           }
 
-          const displayLabel = mapHandlerToDisplayLabel(handler);
+          const displayLabel = node.data?.label || mapHandlerToDisplayLabel(handler);
           return {
             ...node,
             type: handler,
             data: {
               ...node.data,
-              // Reconstruct icon based on authoritative display label
+              // Reconstruct icon based on display label
               icon: getIconForLabel(displayLabel),
               label: displayLabel,
               handlerType: handler
@@ -140,9 +146,12 @@ export default function WorkflowEditorPage() {
 
       // If we have full workflow data, use it directly
       if (workflowData && workflowData.graph) {
+        console.log('✅ Using workflowData from location.state');
         setCurrentWorkflowId(workflowId || workflowData._id);
         setWorkflowName(workflowData.name || '');
-        setNodes(processNodes(workflowData.graph.nodes));
+        const processedNodes = processNodes(workflowData.graph.nodes);
+        console.log('📊 Processed nodes:', processedNodes);
+        setNodes(processedNodes);
         setEdges(workflowData.graph.edges || []);
         return;
       }
@@ -435,27 +444,34 @@ export default function WorkflowEditorPage() {
     console.log('Node configuration updated:', nodeId, updatedData);
   };
 
-  const addNode = (nodeType) => {
-    const handlerKey = mapLabelToHandler(nodeType);
-    const displayLabel = mapHandlerToDisplayLabel(handlerKey);
-
-    let icon;
-    switch (displayLabel) {
-      case 'Web Scraper': icon = <Plug size={16} />; break;
-      case 'AI Summarizer': icon = <Rows size={16} />; break;
-      case 'AI Text Generator': icon = <Brain size={16} />; break;
-      case 'Content Polisher': icon = <Plug size={16} />; break;
-      case 'Sentiment Analyzer': icon = <Text size={16} />; break;
-      case 'Email Generator': icon = <Mail size={16} />; break;
-      case 'Slack Message': icon = <MessageSquare size={16} />; break;
-      default: icon = <Plug size={16} />;
+  // addNode now accepts handler key directly from sidebar (no label mapping needed)
+  const addNode = (handlerKey) => {
+    // If handlerKey is not valid, try to map it from label (backward compatibility)
+    let actualHandler = handlerKey;
+    if (!isValidHandler(handlerKey)) {
+      actualHandler = mapLabelToHandler(handlerKey);
     }
+
+    // Get node data from registry
+    const nodeData = getNodeByHandler(actualHandler);
+    const displayLabel = nodeData?.label || getDisplayLabel(actualHandler);
+    const icon = getIconForHandler(actualHandler, 16);
+
+    // Position at viewport center with random offset to prevent overlap
+    // Default viewport center approximation (will be updated when we have ReactFlow instance)
+    const viewportCenterX = 400;
+    const viewportCenterY = 300;
+    const randomOffsetX = (Math.random() - 0.5) * 150;
+    const randomOffsetY = (Math.random() - 0.5) * 150;
 
     const newNode = {
       id: String(Date.now() + Math.random()),
-      type: handlerKey,
-      position: { x: 250, y: 50 + nodes.length * 50 },
-      data: { label: displayLabel, icon: icon, handlerType: handlerKey },
+      type: actualHandler,
+      position: {
+        x: viewportCenterX + randomOffsetX,
+        y: viewportCenterY + randomOffsetY
+      },
+      data: { label: displayLabel, icon: icon, handlerType: actualHandler },
     };
     setNodes((prev) => [...prev, newNode]);
   };

@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { ReactFlowProvider } from "reactflow";
 import { workflowAPI, executionAPI, authAPI } from "../services/api";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "../components/ui/confirmation-dialog";
 import { Vortex } from "../components/ui/vortex";
 import { GlowingEffect } from "../components/ui/glowing-effect";
 import { useAuth } from "../contexts/AuthContext";
-import WorkflowPipeline from "../components/WorkflowPipeline";
+import ReactFlowPreview from "../components/ReactFlowPreview";
 import NoBrainLogo from "../components/NoBrainLogo";
 import {
   Rocket,
@@ -20,7 +20,12 @@ import {
   CheckCircle,
   Edit,
   Trash2,
-  FileText
+  FileText,
+  Clock,
+  AlertCircle,
+  Play,
+  ChevronRight,
+  Radio
 } from "lucide-react";
 
 // Custom Button component
@@ -38,11 +43,13 @@ const Button = ({
   const variantClasses = {
     default: "bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20",
     outline: "border border-gray-600 hover:bg-gray-800 hover:text-cyan-300 text-gray-300 bg-gray-900/50",
+    ghost: "hover:bg-gray-800/50 text-gray-300",
   };
 
   const sizeClasses = {
     default: "h-10 py-2 px-4",
-    sm: "h-9 px-3 rounded-md",
+    sm: "h-8 px-3 text-xs rounded-md",
+    xs: "h-6 px-2 text-xs rounded",
   };
 
   return (
@@ -56,11 +63,11 @@ const Button = ({
   );
 };
 
-// Custom Card component
-const Card = ({ children, className, ...props }) => {
+// Bento Tile component with GlowingEffect
+const BentoTile = ({ children, className, ...props }) => {
   return (
     <div
-      className={`relative rounded-xl border text-card-foreground shadow-sm overflow-hidden ${className}`}
+      className={`relative rounded-xl border border-gray-700/50 bg-gray-900/40 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-cyan-500/30 ${className}`}
       {...props}
     >
       <GlowingEffect
@@ -70,7 +77,7 @@ const Card = ({ children, className, ...props }) => {
         proximity={64}
         inactiveZone={0.01}
       />
-      <div className="relative z-10">
+      <div className="relative z-10 h-full">
         {children}
       </div>
     </div>
@@ -88,6 +95,11 @@ export default function DashboardPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState(null);
   const modalRef = useRef();
+
+  // Selected workflow for Hero display
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
+  const [recentExecutions, setRecentExecutions] = useState([]);
+
   const [userStats, setUserStats] = useState({
     totalWorkflows: 0,
     totalExecutions: 0,
@@ -97,6 +109,18 @@ export default function DashboardPage() {
     userName: ''
   });
   const [loadingStats, setLoadingStats] = useState(true);
+
+  // Selected workflow for Hero (defaults to first/most recent)
+  const selectedWorkflow = useMemo(() => {
+    if (workflows.length === 0) return null;
+    if (selectedWorkflowId) {
+      return workflows.find(w => w._id === selectedWorkflowId) || workflows[0];
+    }
+    // Default to most recently updated
+    return [...workflows].sort((a, b) =>
+      new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+    )[0];
+  }, [workflows, selectedWorkflowId]);
 
   // Fetch workflows from backend
   useEffect(() => {
@@ -158,6 +182,7 @@ export default function DashboardPage() {
       let totalExecutions = 0;
       let successfulExecutions = 0;
       let failedExecutions = 0;
+      let execList = [];
 
       try {
         const executionsResponse = await executionAPI.getAll({ limit: 1000 });
@@ -180,6 +205,10 @@ export default function DashboardPage() {
           totalExecutions = userExecutions.length;
           successfulExecutions = userExecutions.filter(e => e.status === 'completed').length;
           failedExecutions = userExecutions.filter(e => e.status === 'failed').length;
+
+          execList = userExecutions
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 10);
         }
       } catch (error) {
         console.warn('Error fetching executions:', error);
@@ -193,6 +222,7 @@ export default function DashboardPage() {
         totalNodes,
         userName
       });
+      setRecentExecutions(execList);
     } catch (error) {
       console.error('Error fetching user stats:', error);
     } finally {
@@ -268,6 +298,30 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Get status icon/color for workflow
+  const getWorkflowStatus = (workflow) => {
+    // Check recent executions for this workflow
+    const exec = recentExecutions.find(e =>
+      (e.workflowId?._id || e.workflowId) === workflow._id
+    );
+    if (!exec) return { color: 'bg-gray-500', label: 'Idle' };
+    switch (exec.status) {
+      case 'completed': return { color: 'bg-green-500', label: 'Done' };
+      case 'running': return { color: 'bg-yellow-500 animate-pulse', label: 'Running' };
+      case 'failed': return { color: 'bg-red-500', label: 'Failed' };
+      default: return { color: 'bg-gray-500', label: 'Idle' };
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed': return <CheckCircle className="w-3 h-3 text-green-400" />;
+      case 'running': return <Play className="w-3 h-3 text-yellow-400 animate-pulse" />;
+      case 'failed': return <AlertCircle className="w-3 h-3 text-red-400" />;
+      default: return <Clock className="w-3 h-3 text-gray-400" />;
+    }
+  };
+
   return (
     <Vortex
       backgroundColor="#000000"
@@ -281,8 +335,9 @@ export default function DashboardPage() {
       rangeRadius={2}
       containerClassName="h-screen w-full overflow-hidden fixed inset-0 bg-black"
     >
-      <div className={`h-screen flex flex-col overflow-y-auto overflow-x-hidden ${showWorkflowModal ? "modal-blur-bg" : ""}`}>
-
+      <div
+        className={`h-screen flex flex-col overflow-y-auto overflow-x-hidden ${showWorkflowModal ? "modal-blur-bg" : ""}`}
+      >
 
         {/* Dark overlay for modal */}
         {showWorkflowModal && (
@@ -307,47 +362,56 @@ export default function DashboardPage() {
               >
                 <span className="text-white">X</span>
               </button>
-              <h2 className="text-gray-200 text-3xl font-bold tracking-tight mb-4 text-center select-none">
-                Start a New Workflow
-              </h2>
-              <p className="text-gray-400 mb-6 text-center text-md max-w-xl">
-                How would you like to create your workflow?
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+              <div className="text-center space-y-2">
+                <h2 className="text-3xl font-bold text-white tracking-tight">
+                  Start a New Workflow
+                </h2>
+                <p className="text-gray-400 text-lg">
+                  Choose your preferred way to build.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mt-2">
                 <button
-                  className="group text-left rounded-xl px-7 py-8 flex flex-col items-start shadow-xl focus:outline-none bg-gray-900/80 border-2 border-gray-700/50 hover:border-cyan-500/50 transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98]"
                   onClick={() => { setShowWorkflowModal(false); navigate("/workflow"); }}
+                  className="group relative flex flex-col items-start p-8 rounded-2xl bg-gray-800/40 border border-gray-700/50 hover:border-cyan-500/50 transition-all duration-300 hover:bg-gray-800/60 overflow-hidden"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Rocket className="w-7 h-7 text-cyan-400 drop-shadow-lg group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-2xl text-white tracking-tight">Create Manually</span>
+                  <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-colors" />
+
+                  <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform duration-300">
+                    <Rocket className="w-8 h-8" />
                   </div>
-                  <p className="text-gray-300 text-[15px] mb-3 pr-1">
-                    Build step by step with a visual canvas. Drag, drop, connect, and customize every detail.
+
+                  <h3 className="text-xl font-bold text-white mb-2">Create Manually</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                    Build step by step with our visual canvas. Drag, drop, and connect nodes to create your logic.
                   </p>
-                  <ul className="flex gap-2 text-xs mt-auto">
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">Visual Canvas</li>
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">Drag & Drop</li>
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">Full Control</li>
-                  </ul>
+
+                  <div className="flex flex-wrap gap-2 mt-auto">
+                    <span className="px-2.5 py-1 rounded-md bg-gray-900/50 text-gray-400 text-xs font-medium border border-gray-700/50">Visual Editor</span>
+                    <span className="px-2.5 py-1 rounded-md bg-gray-900/50 text-gray-400 text-xs font-medium border border-gray-700/50">Full Control</span>
+                  </div>
                 </button>
 
                 <button
-                  className="group text-left rounded-xl px-7 py-8 flex flex-col items-start shadow-xl focus:outline-none bg-gray-900/80 border-2 border-gray-700/50 hover:border-yellow-500/50 transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98]"
                   onClick={() => { setShowWorkflowModal(false); navigate("/workflow/ai-prompt"); }}
+                  className="group relative flex flex-col items-start p-8 rounded-2xl bg-gray-800/40 border border-gray-700/50 hover:border-cyan-500/50 transition-all duration-300 hover:bg-gray-800/60 overflow-hidden"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Zap className="w-7 h-7 text-yellow-400 drop-shadow-lg group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-2xl text-white tracking-tight">AI Generated</span>
+                  <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-colors" />
+
+                  <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition-transform duration-300">
+                    <Zap className="w-8 h-8" />
                   </div>
-                  <p className="text-gray-300 text-[15px] mb-3 pr-1">
-                    Describe it, and our AI creates your workflow for you. Provide a summary and let the magic happen!
+
+                  <h3 className="text-xl font-bold text-white mb-2">AI Generated</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                    Describe your goal in plain English and let our AI architect the entire workflow for you.
                   </p>
-                  <ul className="flex gap-2 text-xs mt-auto">
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">AI Powered</li>
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">Quick Setup</li>
-                    <li className="px-3 py-1 rounded bg-gray-800/60 text-gray-300 font-semibold">Smart</li>
-                  </ul>
+
+                  <div className="flex flex-wrap gap-2 mt-auto">
+                    <span className="px-2.5 py-1 rounded-md bg-gray-900/50 text-gray-400 text-xs font-medium border border-gray-700/50">AI Powered</span>
+                    <span className="px-2.5 py-1 rounded-md bg-gray-900/50 text-gray-400 text-xs font-medium border border-gray-700/50">Instant Setup</span>
+                  </div>
                 </button>
               </div>
             </div>
@@ -355,8 +419,8 @@ export default function DashboardPage() {
         )}
 
         {/* Header */}
-        <header className="relative z-30 backdrop-blur-sm border-b border-gray-700/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <header className="relative z-30 mb-4 pt-4 flex-shrink-0">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
                 <NoBrainLogo />
@@ -368,20 +432,12 @@ export default function DashboardPage() {
                   New Workflow
                 </Button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/logs")}
-                >
+                <Button variant="outline" size="sm" onClick={() => navigate("/logs")}>
                   <FileText className="w-4 h-4 mr-2" />
                   Logs
                 </Button>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                >
+                <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
                 </Button>
@@ -390,201 +446,236 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Main Content */}
-        <div className="relative pt-8 pb-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* System Online Box and Stats */}
-            <div className="mb-8 flex flex-col lg:flex-row items-start gap-6">
-              {/* SYSTEM ONLINE Box */}
-              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 backdrop-blur-xl border border-yellow-500/50 rounded-2xl p-6 shadow-2xl shadow-yellow-900/20 hover:shadow-yellow-900/30 transition-all duration-300 w-full lg:w-64 transform hover:scale-[1.02]">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs font-mono text-yellow-300">SYSTEM ONLINE</span>
-                  </div>
-                  <div className="text-xs font-mono text-yellow-200 mb-1">
-                    {currentTime.toLocaleTimeString()}
-                  </div>
-                  <div className="text-sm font-bold text-yellow-200">IT'S TRULY A NO BRAINER</div>
-                </div>
+        {/* Main Bento Grid Content */}
+        <div className="flex-1 p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1600px] mx-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                <span className="ml-3 text-gray-400">Loading dashboard...</span>
               </div>
+            ) : (
+              <div className="flex flex-col lg:flex-row gap-4">
 
-              {/* Stats Cards */}
-              <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                {loadingStats ? (
-                  <div className="col-span-full flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                  </div>
-                ) : (
-                  <>
-                    <Card className="bg-gray-900/40 backdrop-blur-xl border border-gray-700/50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-800/50 rounded-lg">
-                          <Rocket className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Total Workflows</p>
-                          <p className="text-xl font-bold text-white">{userStats.totalWorkflows}</p>
-                        </div>
-                      </div>
-                    </Card>
+                {/* Left Column - Hero + Timeline */}
+                <div className="flex-1 flex flex-col gap-4">
 
-                    <Card className="bg-gray-900/40 backdrop-blur-xl border border-gray-700/50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-800/50 rounded-lg">
-                          <Activity className="w-5 h-5 text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Total Executions</p>
-                          <p className="text-xl font-bold text-white">{userStats.totalExecutions}</p>
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="bg-gray-900/40 backdrop-blur-xl border border-gray-700/50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-800/50 rounded-lg">
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Successful</p>
-                          <p className="text-xl font-bold text-white">{userStats.successfulExecutions}</p>
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="bg-gray-900/40 backdrop-blur-xl border border-gray-700/50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-800/50 rounded-lg">
-                          <Zap className="w-5 h-5 text-yellow-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Total Nodes</p>
-                          <p className="text-xl font-bold text-white">{userStats.totalNodes}</p>
-                        </div>
-                      </div>
-                    </Card>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Workflow Cards */}
-            <div className="space-y-6">
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-                  <span className="ml-3 text-gray-400">Loading workflows...</span>
-                </div>
-              ) : workflows.length === 0 ? (
-                <div className="text-center py-20 bg-gray-900/30 backdrop-blur-sm rounded-xl border border-gray-700/50">
-                  <div className="w-24 h-24 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Brain className="w-12 h-12 text-gray-500" />
-                  </div>
-                  <h3 className="text-2xl font-semibold text-gray-400 mb-4">No Workflows Yet</h3>
-                  <p className="text-gray-500 mb-8 max-w-md mx-auto">
-                    Create your first automation workflow to start the magic.
-                    <span className="font-bold"> IT'S A NO-BRAINER!</span>
-                  </p>
-                  <Button onClick={() => setShowWorkflowModal(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create First Workflow
-                  </Button>
-                </div>
-              ) : (
-                workflows.map((workflow) => {
-                  const graph = workflow.graph || { nodes: [], edges: [] };
-
-                  return (
-                    <div
-                      key={workflow._id}
-                      className="relative bg-gradient-to-br from-gray-900/60 to-gray-800/60 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-300 overflow-hidden"
-                    >
-                      <GlowingEffect
-                        spread={40}
-                        glow={true}
-                        disabled={false}
-                        proximity={64}
-                        inactiveZone={0.01}
-                      />
-                      <div className="relative z-10">
-                        {/* Workflow Header */}
-                        <div className="flex items-start justify-between mb-5">
-                          <div className="flex items-start gap-4 flex-1">
-                            <div className="w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30">
-                              <Brain className="w-7 h-7 text-cyan-400" />
+                  {/* Hero Workflow Tile */}
+                  {selectedWorkflow ? (
+                    <BentoTile className="min-h-[320px] bg-gradient-to-br from-gray-900/60 to-gray-800/60">
+                      <div className="h-full flex flex-col p-5">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30">
+                              <Brain className="w-6 h-6 text-cyan-400" />
                             </div>
-                            <div className="flex-1">
-                              <h3 className="text-xl font-bold text-white mb-1">
-                                {workflow.name}
+                            <div>
+                              <h3 className="text-xl font-bold text-white">
+                                {selectedWorkflow.name}
                               </h3>
-                              <p className="text-sm text-gray-400 mb-2">
-                                {workflow.description || 'No description provided'}
+                              <p className="text-sm text-gray-400">
+                                {selectedWorkflow.graph?.nodes?.length || 0} nodes • {selectedWorkflow.graph?.edges?.length || 0} connections
                               </p>
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <span>Created: {new Date(workflow.createdAt).toLocaleDateString()}</span>
-                                <span>•</span>
-                                <span>{graph.nodes?.length || 0} nodes</span>
-                                <span>•</span>
-                                <span>{graph.edges?.length || 0} connections</span>
-                              </div>
                             </div>
                           </div>
-
-                          <div className="flex gap-2 ml-4">
+                          <div className="flex gap-2">
                             <Button
                               variant="outline"
-                              size="sm"
-                              onClick={() => handleEditWorkflow(workflow)}
-                              disabled={deletingWorkflow === workflow._id}
+                              size="xs"
+                              onClick={() => handleEditWorkflow(selectedWorkflow)}
                             >
-                              <Edit className="w-4 h-4 mr-2" />
+                              <Edit className="w-3 h-3 mr-1" />
                               Edit
                             </Button>
                             <Button
-                              variant="outline"
-                              size="sm"
-                              className="hover:border-red-500/50 hover:text-red-400"
-                              onClick={() => handleDeleteWorkflow(workflow._id)}
-                              disabled={deletingWorkflow === workflow._id}
+                              variant="ghost"
+                              size="xs"
+                              className="hover:text-red-400 hover:bg-red-500/10"
+                              onClick={() => handleDeleteWorkflow(selectedWorkflow._id)}
                             >
-                              {deletingWorkflow === workflow._id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
+                              <Trash2 className="w-3 h-3" />
                             </Button>
                           </div>
                         </div>
 
-                        {/* Work Execution Status Board */}
-                        <div className="pt-5 border-t border-gray-700/50">
-                          <div className="mb-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="relative">
-                                <Activity className="w-5 h-5 text-yellow-400 animate-pulse" />
-                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full animate-ping" />
+                        {/* React Flow Workflow Preview */}
+                        <div className="flex-1 bg-gray-950/80 rounded-xl border border-gray-700/50 overflow-hidden min-h-[180px]">
+                          <ReactFlowProvider>
+                            <ReactFlowPreview workflow={selectedWorkflow} />
+                          </ReactFlowProvider>
+                        </div>
+                      </div>
+                    </BentoTile>
+                  ) : (
+                    <BentoTile className="min-h-[320px] bg-gradient-to-br from-gray-900/40 to-gray-800/40">
+                      <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                        <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-4">
+                          <Brain className="w-10 h-10 text-gray-500" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-400 mb-2">No Workflows Yet</h3>
+                        <p className="text-sm text-gray-500 mb-6">Create your first automation workflow</p>
+                        <Button onClick={() => setShowWorkflowModal(true)}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Workflow
+                        </Button>
+                      </div>
+                    </BentoTile>
+                  )}
+
+                  {/* Workflow Timeline Strip */}
+                  {workflows.length > 0 && (
+                    <BentoTile className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Radio className="w-4 h-4 text-cyan-400" />
+                        <span className="text-sm font-semibold text-white">Your Workflows</span>
+                        <span className="text-xs text-gray-500">({workflows.length})</span>
+                      </div>
+
+                      {/* Timeline Strip */}
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                        {workflows.map((workflow, idx) => {
+                          const status = getWorkflowStatus(workflow);
+                          const isSelected = selectedWorkflow?._id === workflow._id;
+
+                          return (
+                            <button
+                              key={workflow._id}
+                              onClick={() => setSelectedWorkflowId(workflow._id)}
+                              className={`group flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${isSelected
+                                ? 'bg-cyan-500/20 border-cyan-500/50 shadow-lg shadow-cyan-500/10'
+                                : 'bg-gray-800/40 border-gray-700/50 hover:bg-gray-800/60 hover:border-gray-600/50'
+                                }`}
+                            >
+                              {/* Status Dot */}
+                              <div className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
+
+                              {/* Workflow Info */}
+                              <div className="text-left min-w-[100px] max-w-[150px]">
+                                <p className={`text-sm font-medium truncate ${isSelected ? 'text-cyan-300' : 'text-white'}`}>
+                                  {workflow.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {workflow.graph?.nodes?.length || 0} nodes
+                                </p>
                               </div>
-                              <div>
-                                <p className="text-sm font-bold text-white">WORK EXECUTION STATUS</p>
-                                <p className="text-xs text-gray-400 font-mono">
-                                  Live monitoring • Continuous workflow execution
+
+                              {/* Arrow for selected */}
+                              {isSelected && (
+                                <ChevronRight className="w-4 h-4 text-cyan-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </BentoTile>
+                  )}
+                </div>
+
+                {/* Right Column - Stats + Activity */}
+                <div className="w-full lg:w-80 flex flex-col gap-4">
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <BentoTile className="p-4">
+                      <div className="h-full flex flex-col justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-cyan-500/20 rounded-lg">
+                            <Rocket className="w-4 h-4 text-cyan-400" />
+                          </div>
+                          <span className="text-xs text-gray-400">Workflows</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white">{userStats.totalWorkflows}</div>
+                      </div>
+                    </BentoTile>
+
+                    <BentoTile className="p-4">
+                      <div className="h-full flex flex-col justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-blue-500/20 rounded-lg">
+                            <Activity className="w-4 h-4 text-blue-400" />
+                          </div>
+                          <span className="text-xs text-gray-400">Executions</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white">{userStats.totalExecutions}</div>
+                      </div>
+                    </BentoTile>
+
+                    <BentoTile className="p-4">
+                      <div className="h-full flex flex-col justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-green-500/20 rounded-lg">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          </div>
+                          <span className="text-xs text-gray-400">Success</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white">{userStats.successfulExecutions}</div>
+                      </div>
+                    </BentoTile>
+
+                    <BentoTile className="p-4">
+                      <div className="h-full flex flex-col justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-cyan-500/20 rounded-lg">
+                            <Zap className="w-4 h-4 text-cyan-400" />
+                          </div>
+                          <span className="text-xs text-gray-400">Nodes</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white">{userStats.totalNodes}</div>
+                      </div>
+                    </BentoTile>
+                  </div>
+
+                  {/* System Online - Cyan Theme */}
+                  <BentoTile className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse" />
+                        <div>
+                          <p className="text-sm font-bold text-cyan-200">SYSTEM ONLINE</p>
+                          <p className="text-xs text-cyan-300/70 font-mono">IT'S A NO BRAINER</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-mono text-cyan-200">{currentTime.toLocaleTimeString()}</p>
+                        <p className="text-xs text-cyan-300/50">{currentTime.toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </BentoTile>
+
+                  {/* Activity Log */}
+                  <BentoTile className="flex-1 min-h-[200px]">
+                    <div className="h-full flex flex-col p-4">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700/50">
+                        <Activity className="w-4 h-4 text-cyan-400" />
+                        <span className="text-sm font-semibold text-white">Recent Activity</span>
+                      </div>
+                      <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin">
+                        {recentExecutions.length > 0 ? (
+                          recentExecutions.map((exec, idx) => (
+                            <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors">
+                              {getStatusIcon(exec.status)}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-300 truncate">
+                                  {exec.workflowId?.name || 'Workflow'}
+                                </p>
+                                <p className="text-[10px] text-gray-500">
+                                  {new Date(exec.createdAt).toLocaleTimeString()}
                                 </p>
                               </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center">
+                            <p className="text-xs text-gray-500">No recent activity</p>
                           </div>
-                          <div className="bg-gradient-to-br from-gray-950/95 to-black/95 rounded-xl border-2 border-gray-700/50 shadow-2xl overflow-hidden">
-                            <div className="p-6">
-                              <WorkflowPipeline workflow={workflow} />
-                            </div>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  </BentoTile>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -611,8 +702,11 @@ export default function DashboardPage() {
           pointer-events: none !important;
           user-select: none !important;
         }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
       `}</style>
-      </div >
-    </Vortex >
+      </div>
+    </Vortex>
   );
 }

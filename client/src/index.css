@@ -23,22 +23,27 @@ body,
 
 /* Custom scrollbar styles */
 .scrollbar-gray::-webkit-scrollbar {
-  width: 8px; /* Width of the scrollbar */
+  width: 8px;
+  /* Width of the scrollbar */
 }
 
 .scrollbar-gray::-webkit-scrollbar-track {
-  background: #27272a; /* Zinc-800 or a dark gray color */
+  background: #27272a;
+  /* Zinc-800 or a dark gray color */
 }
 
 .scrollbar-gray::-webkit-scrollbar-thumb {
-  background-color: #52525b; /* Zinc-600 or a lighter gray for the draggable part */
+  background-color: #52525b;
+  /* Zinc-600 or a lighter gray for the draggable part */
   border-radius: 20px;
-  border: 2px solid #27272a; /* Same as track to create a border effect */
+  border: 2px solid #27272a;
+  /* Same as track to create a border effect */
 }
 
 /* For Firefox compatibility */
 .scrollbar-gray {
-  scrollbar-color: #52525b #27272a; /* thumb track */
+  scrollbar-color: #52525b #27272a;
+  /* thumb track */
   scrollbar-width: thin;
 }
 
@@ -153,7 +158,50 @@ body,
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Lazy load fade-in animation for Bento tiles */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Staggered animation delays for grids */
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+
+.stagger-3 {
+  animation-delay: 0.3s;
+}
+
+.stagger-4 {
+  animation-delay: 0.4s;
+}
+
+.stagger-5 {
+  animation-delay: 0.5s;
+}
+
+.stagger-6 {
+  animation-delay: 0.6s;
 }

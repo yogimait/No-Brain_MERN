@@ -80,6 +80,16 @@ export const workflowAPI = {
     const response = await apiClient.get(`/workflows/${id}`);
     return response.data; // Assuming backend sends { success: true, data: workflow }
   },
+
+  /**
+   * Delete a workflow by its ID.
+   * @param {string} id - The ID of the workflow to delete
+   * @returns {Promise<object>} The deletion result
+   */
+  delete: async (id) => {
+    const response = await apiClient.delete(`/workflows/${id}`);
+    return response.data; // Assuming backend sends { success: true, data: {} }
+  },
 };
 
 

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   ArrowRight,
+  LayoutDashboard,
   Brain,
   Briefcase,
   Sparkles,
@@ -145,12 +146,10 @@ export default function AISummaryPage() {
             </div>
 
             <Button
-              variant="ghost"
-              size="sm"
-              className="text-cyan-400 hover:text-cyan-300 hover:bg-transparent p-0 font-medium"
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20"
               onClick={() => navigate('/dashboard')}
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <LayoutDashboard className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>
           </div>

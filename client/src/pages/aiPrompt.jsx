@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
@@ -11,7 +11,8 @@ import {
   Briefcase,
   Sparkles,
   Zap,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import { nlpAPI } from '../services/api';
 import { Vortex } from '../components/ui/vortex';
@@ -23,12 +24,26 @@ export default function AISummaryPage() {
   const [workflowType, setWorkflowType] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [retryAfter, setRetryAfter] = useState(0);
 
-  const handleGenerateWorkflow = async () => {
+  // Debounce ref to prevent rapid clicks
+  const lastRequestTime = useRef(0);
+  const DEBOUNCE_MS = 2000; // 2 second debounce
+
+  const handleGenerateWorkflow = useCallback(async () => {
     if (!summary.trim() || !workflowType) return;
+
+    // Debounce check
+    const now = Date.now();
+    if (now - lastRequestTime.current < DEBOUNCE_MS) {
+      toast.warning('Please wait before generating another workflow');
+      return;
+    }
+    lastRequestTime.current = now;
 
     setIsGenerating(true);
     setError('');
+    setRetryAfter(0);
 
     try {
       console.log('🚀 Starting AI workflow generation with prompt:', summary);
@@ -41,6 +56,11 @@ export default function AISummaryPage() {
       // Handle the ApiResponse format: { success: true, data: { workflow, ... }, message }
       if (response && response.success && response.data && response.data.workflow) {
         const generatedWorkflow = response.data.workflow;
+
+        // Check if this is a fallback workflow
+        if (response.data.warning) {
+          toast.warning(response.data.warning);
+        }
 
         console.log('📊 Generated workflow structure:', {
           nodes: generatedWorkflow.nodes?.length || 0,
@@ -64,41 +84,33 @@ export default function AISummaryPage() {
       }
     } catch (err) {
       console.error('❌ Error generating workflow:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to generate workflow. Please try again.';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      setIsGenerating(false);
-    }
-  };
 
-  // Retry generation with stricter instruction forcing JSON-only output
-  const handleRetryStrict = async () => {
-    if (!summary.trim() || !workflowType) return;
-    setIsGenerating(true);
-    setError('');
+      // Handle rate limit errors specially
+      if (err.response?.status === 429) {
+        const retrySeconds = err.response?.data?.retryAfter || 60;
+        setRetryAfter(retrySeconds);
+        setError(`Rate limit reached. Please wait ${retrySeconds} seconds before trying again.`);
+        toast.error(`Rate limit reached. Please wait ${retrySeconds} seconds.`);
 
-    const strictPrompt = `${summary}\n\nIMPORTANT: Respond ONLY with a single valid JSON object. The JSON must contain two keys: \"nodes\" (array) and \"edges\" (array). Do not include any explanatory text, markdown, or backticks. Example: { \"nodes\": [...], \"edges\": [...] }`;
-
-    try {
-      const response = await nlpAPI.generateWorkflow(strictPrompt);
-      if (response && response.success && response.data && response.data.workflow) {
-        const generatedWorkflow = response.data.workflow;
-        navigate('/workflow', {
-          state: { fromAIGeneration: true, aiGeneratedWorkflow: generatedWorkflow, prompt: summary, workflowType }
-        });
-        toast.success('Workflow generated successfully (strict JSON).');
+        // Countdown timer
+        const countdownInterval = setInterval(() => {
+          setRetryAfter(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
       } else {
-        throw new Error(response?.error || 'Failed to generate workflow (strict)');
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to generate workflow. Please try again.';
+        setError(errorMessage);
+        toast.error(errorMessage);
       }
-    } catch (err) {
-      console.error('❌ Strict generation failed:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Strict generation failed. Please try again.';
-      setError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [summary, workflowType, navigate]);
 
   const workflowTypes = [
     { value: 'social-media', label: 'Social Media Automation' },
@@ -183,19 +195,17 @@ export default function AISummaryPage() {
                   <div>
                     <p className="text-red-300 font-medium text-sm">Generation Error</p>
                     <p className="text-red-200/80 text-xs mt-1">{error}</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleRetryStrict}
-                        className="bg-red-600 hover:bg-red-700 text-white text-xs"
-                        disabled={isGenerating}
-                      >
-                        Retry with strict JSON
-                      </Button>
+                    {retryAfter > 0 && (
+                      <div className="mt-2 flex items-center gap-2 text-yellow-400 text-xs">
+                        <Clock className="w-4 h-4" />
+                        <span>You can retry in {retryAfter} seconds</span>
+                      </div>
+                    )}
+                    <div className="mt-3">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => { setError(''); }}
+                        onClick={() => { setError(''); setRetryAfter(0); }}
                         className="text-red-200 border-red-700/50 hover:bg-red-900/30 text-xs"
                       >
                         Dismiss
@@ -251,7 +261,7 @@ export default function AISummaryPage() {
               <div className="text-center">
                 <Button
                   onClick={handleGenerateWorkflow}
-                  disabled={!summary.trim() || !workflowType || isGenerating}
+                  disabled={!summary.trim() || !workflowType || isGenerating || retryAfter > 0}
                   className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-10 py-6 text-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-cyan-500/30 transition-all duration-300 hover:shadow-cyan-500/50 hover:scale-[1.02]"
                 >
                   {isGenerating ? (

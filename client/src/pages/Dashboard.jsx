@@ -455,10 +455,10 @@ export default function DashboardPage() {
                 <span className="ml-3 text-gray-400">Loading dashboard...</span>
               </div>
             ) : (
-              <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex flex-col lg:flex-row gap-6">
 
-                {/* Left Column - Hero + Timeline */}
-                <div className="flex-1 flex flex-col gap-4">
+                {/* Left Column - Hero + Timeline (70%) */}
+                <div className="flex-1 lg:w-[70%] flex flex-col gap-4">
 
                   {/* Hero Workflow Tile */}
                   {selectedWorkflow ? (
@@ -533,7 +533,7 @@ export default function DashboardPage() {
                       </div>
 
                       {/* Timeline Strip */}
-                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                      <div className="flex flex-wrap gap-2 pb-2">
                         {workflows.map((workflow, idx) => {
                           const status = getWorkflowStatus(workflow);
                           const isSelected = selectedWorkflow?._id === workflow._id;
@@ -572,13 +572,13 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Right Column - Stats + Activity */}
-                <div className="w-full lg:w-80 flex flex-col gap-4">
+                {/* Right Column - Stats + Activity (30%) */}
+                <div className="w-full lg:w-[30%] flex flex-col gap-4">
 
                   {/* Stats Grid */}
                   <div className="grid grid-cols-2 gap-4">
                     <BentoTile className="p-4">
-                      <div className="h-full flex flex-col justify-between">
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 bg-cyan-500/20 rounded-lg">
                             <Rocket className="w-4 h-4 text-cyan-400" />
@@ -590,7 +590,7 @@ export default function DashboardPage() {
                     </BentoTile>
 
                     <BentoTile className="p-4">
-                      <div className="h-full flex flex-col justify-between">
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 bg-blue-500/20 rounded-lg">
                             <Activity className="w-4 h-4 text-blue-400" />
@@ -602,7 +602,7 @@ export default function DashboardPage() {
                     </BentoTile>
 
                     <BentoTile className="p-4">
-                      <div className="h-full flex flex-col justify-between">
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 bg-green-500/20 rounded-lg">
                             <CheckCircle className="w-4 h-4 text-green-400" />
@@ -614,7 +614,7 @@ export default function DashboardPage() {
                     </BentoTile>
 
                     <BentoTile className="p-4">
-                      <div className="h-full flex flex-col justify-between">
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 bg-cyan-500/20 rounded-lg">
                             <Zap className="w-4 h-4 text-cyan-400" />

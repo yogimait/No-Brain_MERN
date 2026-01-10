@@ -6,6 +6,7 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  LayoutDashboard,
   ArrowLeft,
   RefreshCw,
   Brain,
@@ -20,6 +21,7 @@ import { Vortex } from '../components/ui/vortex';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
+import NoBrainLogo from "../components/NoBrainLogo";
 
 export default function LogsPage() {
   const navigate = useNavigate();
@@ -258,27 +260,25 @@ export default function LogsPage() {
     >
       <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden text-gray-100">
         {/* Header */}
-        <header className="relative z-30 backdrop-blur-md bg-gray-900/40 border-b border-gray-700/50 flex-shrink-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        <header className="relative z-30 mb-4 pt-4 flex-shrink-0">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
-                <FileText className="w-6 h-6 text-gray-400" />
-                <span className="text-2xl font-bold text-gray-300">Execution Logs</span>
+                <NoBrainLogo />
               </div>
               <div className="flex items-center gap-3">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-300 hover:text-gray-200 bg-transparent hover:bg-gray-800/30 p-0"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Dashboard
-                </Button>
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20"
+              onClick={() => navigate('/dashboard')}
+            >
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="text-gray-300 hover:text-gray-200 bg-transparent hover:bg-gray-800/30 p-0"
+                  className="border-gray-600 text-gray-300 bg-gray-900/50 hover:bg-gray-800 hover:text-cyan-300"
                   onClick={fetchExecutions}
                   disabled={loading}
                 >

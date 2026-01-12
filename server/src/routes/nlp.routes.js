@@ -8,24 +8,25 @@ import {
   healthCheck,
   getAvailableNodes
 } from '../controllers/nlp.controller.js';
+import { nlpRateLimiter } from '../middlewares/nlpRateLimiter.js';
 
 const router = express.Router();
 
 /**
  * @route   POST /api/nlp/generate
  * @desc    Generate workflow from text prompt using Gemini
- * @access  Public (will be protected later)
+ * @access  Public (rate limited)
  * @body    { "prompt": "your prompt here", "model": "gemini-2.5-flash" (optional) }
  */
-router.post('/generate', generateWorkflow);
+router.post('/generate', nlpRateLimiter, generateWorkflow);
 
 /**
  * @route   POST /api/nlp/generate-and-run
  * @desc    Generate workflow with Gemini and immediately execute it
- * @access  Public
+ * @access  Public (rate limited)
  * @body    { "prompt": "your prompt here" }
  */
-router.post('/generate-and-run', generateAndRunWorkflow);
+router.post('/generate-and-run', nlpRateLimiter, generateAndRunWorkflow);
 
 /**
  * @route   GET /api/nlp/examples

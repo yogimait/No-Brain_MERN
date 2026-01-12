@@ -1,5 +1,3 @@
-
-
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -14,8 +12,10 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useCallback, useMemo, useState } from 'react';
+import { getNodeByHandler, getIconForHandler, getAvailableHandlers, isValidHandler, getDisplayLabel } from '../services/nodeRegistry.jsx';
+import { mapLabelToHandler } from '../services/nodeTypeMap';
 import { Card } from '../components/ui/card';
-import { Plug, Rows, Edit, MessageSquare, Bot, Trash2, Text, Mail, X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
 
 // --- Custom Node Component ---
@@ -26,7 +26,7 @@ const CustomNode = ({ id, data, selected = false }) => {
   const selectedShadowStyle = '0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 8px rgba(59, 130, 246, 0.3)';
 
   const handleDelete = (event) => {
-    event.stopPropagation(); 
+    event.stopPropagation();
     console.log('Deleting node:', id);
     console.log('onDelete function available:', !!data.onDelete); // Debug log
     if (data.onDelete) {
@@ -64,19 +64,22 @@ const CustomNode = ({ id, data, selected = false }) => {
   );
 };
 
-const nodeTypes = {
-  custom: CustomNode,
-};
+// Build nodeTypes mapping dynamically from the centralized registry
+const allHandlers = getAvailableHandlers();
+const nodeTypes = allHandlers.reduce((acc, handler) => {
+  acc[handler] = CustomNode;
+  return acc;
+}, { custom: CustomNode });
 
 export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNodeClick }) {
   const reactFlowInstance = useReactFlow();
   const [showClearDialog, setShowClearDialog] = useState(false);
-  
+
   const onNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
   const onEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
-  const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, type: 'step' }, eds)), [setEdges]);
   const onNodeClickHandler = useCallback((event, node) => onNodeClick(node.id), [onNodeClick]);
-  
+
   // Delete node function
   const onDeleteNode = useCallback((nodeId) => {
     console.log('Deleting node with ID:', nodeId); // Debug log
@@ -104,33 +107,33 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
     event.preventDefault();
     const type = event.dataTransfer.getData('application/reactflow');
     if (typeof type === 'undefined' || !type) return;
-    
+
     const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    let icon = <Plug size={16} />;
-    switch (type) {
-      case 'Web Scraper': icon = <Plug size={16} />; break;
-      case 'AI Summarizer': icon = <Rows size={16} />; break;
-      case 'Slack Message': icon = <MessageSquare size={16} />; break;
-      case 'Content Polisher': icon = <Edit size={16} />; break;
-      case 'AI Text Generator': icon = <Bot size={16} />; break;
-      case 'Sentiment Analyzer': icon = <Text size={16} />; break;
-      case 'Email Generator': icon = <Mail size={16} />; break;
-      default: icon = <Plug size={16} />;
+
+    // type is now a handler key from the sidebar (or fallback to label mapping)
+    let handlerKey = type;
+    if (!isValidHandler(type)) {
+      handlerKey = mapLabelToHandler(type);
     }
-    
+
+    const nodeData = getNodeByHandler(handlerKey);
+    const displayLabel = nodeData?.label || getDisplayLabel(handlerKey);
+    const icon = getIconForHandler(handlerKey, 16);
+
     const newNode = {
-      id: `dndnode_${+new Date()}`,
-      type: 'custom',
+      id: `${handlerKey}-${+new Date()}`,
+      type: handlerKey,
       position,
-      data: { 
-        label: type, 
+      data: {
+        label: displayLabel,
         icon: icon,
-        onDelete: onDeleteNode // Pass the function directly
+        handlerType: handlerKey,
+        onDelete: onDeleteNode
       },
       selectable: true,
     };
-    
-    console.log('Creating new node with onDelete:', !!onDeleteNode); // Debug log
+
+    console.log('Creating new node:', newNode.data.label);
     setNodes((nds) => nds.concat(newNode));
   }, [reactFlowInstance, setNodes, onDeleteNode]);
 
@@ -188,5 +191,3 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
     </>
   );
 }
-
-

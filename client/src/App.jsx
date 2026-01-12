@@ -22,55 +22,55 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          
+
           {/* Protected routes */}
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/workflow" 
+          <Route
+            path="/workflow"
             element={
               <ProtectedRoute>
                 <Workflow />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/workflow/ai-prompt" 
+          <Route
+            path="/workflow/ai-prompt"
             element={
               <ProtectedRoute>
                 <AIPromptPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/workflow/complete" 
+          <Route
+            path="/workflow/complete"
             element={
               <ProtectedRoute>
                 <CompleteWorkflowPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/workflows-list" 
+          <Route
+            path="/workflows-list"
             element={
               <ProtectedRoute>
                 <WorkflowsListPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/logs" 
+          <Route
+            path="/logs"
             element={
               <ProtectedRoute>
                 <Logs />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Catch all - redirect to home */}

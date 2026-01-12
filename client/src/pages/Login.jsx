@@ -200,7 +200,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Lock, Eye, EyeOff, Mail } from "lucide-react";
 import { useState } from "react";
 import { Label } from "../components/ui/label";
-import { Input } from "../components/ui/Input";
+import { Input } from "../components/ui/input";
 import { BackgroundBeams } from "../components/ui/background-beams";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";

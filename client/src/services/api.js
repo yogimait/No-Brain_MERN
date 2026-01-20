@@ -1,7 +1,26 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3000/api';
-//const API_BASE_URL = 'https://no-brain-server.onrender.com/api';
+// API Base URL Configuration
+// In production: VITE_API_URL must be set, otherwise fail loudly
+// In development: Falls back to localhost
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+
+  if (envUrl) {
+    return envUrl;
+  }
+
+  // In production, missing VITE_API_URL is a critical error
+  if (import.meta.env.PROD) {
+    console.error('CRITICAL: VITE_API_URL environment variable is not set in production!');
+    throw new Error('API configuration error: VITE_API_URL is required in production');
+  }
+
+  // Development fallback
+  return 'http://localhost:3000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

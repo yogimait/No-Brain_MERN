@@ -1,7 +1,26 @@
 import axios from 'axios';
 
-//const API_BASE_URL = 'http://localhost:3000/api';
-const API_BASE_URL = 'https://no-brain-server.onrender.com/api';
+// API Base URL Configuration
+// In production: VITE_API_URL must be set, otherwise fail loudly
+// In development: Falls back to localhost
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+
+  if (envUrl) {
+    return envUrl;
+  }
+
+  // In production, missing VITE_API_URL is a critical error
+  if (import.meta.env.PROD) {
+    console.error('CRITICAL: VITE_API_URL environment variable is not set in production!');
+    throw new Error('API configuration error: VITE_API_URL is required in production');
+  }
+
+  // Development fallback
+  return 'http://localhost:3000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -112,6 +131,39 @@ export const executionAPI = {
   // Delete execution by runId
   delete: async (runId) => {
     const response = await api.delete(`/executions/${runId}`);
+    return response.data;
+  },
+};
+
+// NLP APIs (AI workflow generation)
+export const nlpAPI = {
+  // Generate workflow from text prompt using Gemini
+  generateWorkflow: async (prompt, model = 'gemini-2.5-flash') => {
+    const response = await api.post('/nlp/generate', { prompt, model });
+    return response.data;
+  },
+
+  // Generate workflow and immediately execute it
+  generateAndRun: async (prompt) => {
+    const response = await api.post('/nlp/generate-and-run', { prompt });
+    return response.data;
+  },
+
+  // Get example prompts for testing
+  getExamples: async () => {
+    const response = await api.get('/nlp/examples');
+    return response.data;
+  },
+
+  // Get available node types from backend
+  getAvailableNodes: async () => {
+    const response = await api.get('/nlp/nodes');
+    return response.data;
+  },
+
+  // Health check for NLP service
+  healthCheck: async () => {
+    const response = await api.get('/nlp/health');
     return response.data;
   },
 };

@@ -6,12 +6,12 @@ import { connectDB } from "./src/db/dbConfig.js";
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 connectDB()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Orchestrator API: http://localhost:${PORT}/api/orchestrator`);
+      console.log(`Server running on port ${PORT} (${NODE_ENV})`);
     });
   })
   .catch((error) => {

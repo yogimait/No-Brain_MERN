@@ -14,7 +14,7 @@ import {
   AlertCircle,
   Clock
 } from 'lucide-react';
-import { nlpAPI } from '../services/api';
+import { agentAPI } from '../services/api';
 import { Vortex } from '../components/ui/vortex';
 import NoBrainLogo from '../components/NoBrainLogo';
 
@@ -46,27 +46,37 @@ export default function AISummaryPage() {
     setRetryAfter(0);
 
     try {
-      console.log('🚀 Starting AI workflow generation with prompt:', summary);
+      console.log('🧠 Starting AGENTIC workflow generation with prompt:', summary);
 
-      // Call the Gemini API to generate the workflow
-      const response = await nlpAPI.generateWorkflow(summary);
+      // Call the rule-based Agent API (NO AI, instant response ~4ms)
+      const response = await agentAPI.generateWorkflow(summary);
 
-      console.log('✅ AI Response:', response);
+      console.log('✅ Agentic Response:', response);
 
-      // Handle the ApiResponse format: { success: true, data: { workflow, ... }, message }
-      if (response && response.success && response.data && response.data.workflow) {
-        const generatedWorkflow = response.data.workflow;
+      // Handle the Agent API response format: { success: true, workflow: {...}, context: {...} }
+      if (response && response.success && response.workflow) {
+        const generatedWorkflow = response.workflow;
 
-        // Check if this is a fallback workflow
-        if (response.data.warning) {
-          toast.warning(response.data.warning);
+        // Check if any auto-repairs were made
+        if (response.warning) {
+          toast.info(response.warning);
         }
 
         console.log('📊 Generated workflow structure:', {
           nodes: generatedWorkflow.nodes?.length || 0,
           edges: generatedWorkflow.edges?.length || 0,
-          metadata: generatedWorkflow.metadata
+          source: response.source,
+          executionTime: response.executionTime
         });
+
+        // FIX 3: Show warning for single-node workflows (minimal intent detected)
+        if (generatedWorkflow.nodes?.length === 1) {
+          toast.warning(
+            "We couldn't clearly detect an action. Try prompts like:\n" +
+            "'Fetch data and summarize it' or 'Get blog posts and email summary'",
+            { duration: 6000 }
+          );
+        }
 
         // Navigate to workflow editor and pass the generated workflow
         navigate('/workflow', {
@@ -179,7 +189,7 @@ export default function AISummaryPage() {
             Describe Your Workflow
           </h1>
           <p className="text-gray-400 text-lg max-w-xl mx-auto">
-            Tell our AI what you want your workflow to do
+            Describe what you want — instant workflow generation ⚡
           </p>
         </div>
 
@@ -267,11 +277,11 @@ export default function AISummaryPage() {
                   {isGenerating ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
-                      AI is generating...
+                      Generating...
                     </>
                   ) : (
                     <>
-                      Generate Workflow
+                      Generate Workflow ⚡
                       <ArrowRight className="w-5 h-5 ml-3" />
                     </>
                   )}

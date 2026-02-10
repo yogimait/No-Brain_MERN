@@ -348,27 +348,34 @@ export default function WorkflowEditorPage() {
           const id = node.id || `ai-node-${idx}-${Math.round(Math.random() * 10000)}`;
           const position = node.position || { x: 100 + idx * 220, y: 80 + (idx % 3) * 120 };
 
-          // If the AI returned a handler key as the label (e.g., 'aiSummarizer'), convert to a friendly label
-          const handlerLike = (label || '').toString().trim();
-          const knownHandlers = new Set(Object.values(nodeLabelToHandler || {}));
-          if (handlerLike && knownHandlers.has(handlerLike)) {
-            label = mapHandlerToDisplayLabel(handlerLike);
+          // Get handler from nodeId, handlerType, or fall back to label mapping
+          let handlerKey = node?.data?.nodeId || node?.data?.handlerType || node?.data?.handler;
+
+          // If no handler found, try mapping from label
+          if (!handlerKey || !isValidHandler(handlerKey)) {
+            handlerKey = mapLabelToHandler(label);
           }
 
-          // If the node explicitly includes a handlerType, prefer that for mapping and display
-          if (node?.data?.handlerType && typeof node.data.handlerType === 'string') {
-            label = mapHandlerToDisplayLabel(node.data.handlerType);
+          // Validate handler exists in registry
+          if (!isValidHandler(handlerKey)) {
+            console.warn('Invalid handler, falling back to dataFetcher:', handlerKey);
+            handlerKey = 'dataFetcher';
           }
+
+          // Get display label from registry (consistent with other nodes)
+          const displayLabel = getDisplayLabel(handlerKey);
+
+          // Get icon from registry (NOT from getIconForLabel)
+          const icon = getIconForHandler(handlerKey, 16);
 
           return {
             id,
-            type: node.type || 'custom',
+            type: handlerKey, // USE HANDLER KEY AS TYPE (not 'custom' or 'customNode')
             position,
             data: {
-              // Use a cleaned label for display and mapping
-              label: label,
-              icon: getIconForLabel(label),
-              handlerType: node?.data?.handlerType || mapLabelToHandler(label),
+              label: displayLabel,
+              icon: icon,
+              handlerType: handlerKey,
               ...(node.data || {})
             }
           };

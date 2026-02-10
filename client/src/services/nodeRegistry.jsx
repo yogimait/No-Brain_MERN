@@ -238,6 +238,13 @@ export const NODE_REGISTRY = {
         iconName: 'Link',
         category: 'Control',
         color: 'text-emerald-400'
+    },
+    outputLogger: {
+        handler: 'outputLogger',
+        label: 'Output Logger',
+        iconName: 'FileText',
+        category: 'Control',
+        color: 'text-gray-400'
     }
 };
 

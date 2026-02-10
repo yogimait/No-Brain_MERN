@@ -1,0 +1,740 @@
+{
+    "version": "1.0.0",
+    "nodes": [
+        {
+            "id": "dataFetcher",
+            "label": "Data Fetcher",
+            "category": "input",
+            "priority": 1,
+            "isFallback": true,
+            "capabilities": [
+                {
+                    "action": "fetch",
+                    "strength": 1.0
+                },
+                {
+                    "action": "get",
+                    "strength": 0.9
+                },
+                {
+                    "action": "collect",
+                    "strength": 0.8
+                },
+                {
+                    "action": "retrieve",
+                    "strength": 0.8
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": false,
+            "producesOutput": true
+        },
+        {
+            "id": "webScraper",
+            "label": "Web Scraper",
+            "category": "input",
+            "priority": 2,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "scrape",
+                    "strength": 1.0
+                },
+                {
+                    "action": "crawl",
+                    "strength": 0.9
+                },
+                {
+                    "action": "extract",
+                    "strength": 0.8
+                },
+                {
+                    "action": "fetch",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "requiresInput": false,
+            "producesOutput": true
+        },
+        {
+            "id": "rssFeed",
+            "label": "RSS Feed",
+            "category": "input",
+            "priority": 3,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "rss",
+                    "strength": 1.0
+                },
+                {
+                    "action": "feed",
+                    "strength": 0.9
+                },
+                {
+                    "action": "subscribe",
+                    "strength": 0.7
+                },
+                {
+                    "action": "news",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": false,
+            "producesOutput": true
+        },
+        {
+            "id": "webhookTrigger",
+            "label": "Webhook Trigger",
+            "category": "input",
+            "priority": 4,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "webhook",
+                    "strength": 1.0
+                },
+                {
+                    "action": "trigger",
+                    "strength": 0.8
+                },
+                {
+                    "action": "listen",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": false,
+            "producesOutput": true
+        },
+        {
+            "id": "aiSummarizer",
+            "label": "AI Summarizer",
+            "category": "process",
+            "priority": 1,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "summarize",
+                    "strength": 1.0
+                },
+                {
+                    "action": "shorten",
+                    "strength": 0.9
+                },
+                {
+                    "action": "condense",
+                    "strength": 0.9
+                },
+                {
+                    "action": "digest",
+                    "strength": 0.8
+                },
+                {
+                    "action": "brief",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "aiTextGenerator",
+            "label": "AI Text Generator",
+            "category": "process",
+            "priority": 2,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "generate",
+                    "strength": 1.0
+                },
+                {
+                    "action": "write",
+                    "strength": 0.9
+                },
+                {
+                    "action": "compose",
+                    "strength": 0.9
+                },
+                {
+                    "action": "create",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "sentimentAnalyzer",
+            "label": "Sentiment Analyzer",
+            "category": "process",
+            "priority": 3,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "analyze",
+                    "strength": 1.0
+                },
+                {
+                    "action": "sentiment",
+                    "strength": 1.0
+                },
+                {
+                    "action": "mood",
+                    "strength": 0.8
+                },
+                {
+                    "action": "tone",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "dataTransformer",
+            "label": "Data Transformer",
+            "category": "process",
+            "priority": 4,
+            "isFallback": true,
+            "capabilities": [
+                {
+                    "action": "transform",
+                    "strength": 1.0
+                },
+                {
+                    "action": "convert",
+                    "strength": 0.9
+                },
+                {
+                    "action": "process",
+                    "strength": 0.8
+                },
+                {
+                    "action": "format",
+                    "strength": 0.8
+                },
+                {
+                    "action": "filter",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "textProcessor",
+            "label": "Text Processor",
+            "category": "process",
+            "priority": 5,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "parse",
+                    "strength": 1.0
+                },
+                {
+                    "action": "clean",
+                    "strength": 0.9
+                },
+                {
+                    "action": "extract",
+                    "strength": 0.8
+                },
+                {
+                    "action": "split",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "imageProcessor",
+            "label": "Image Processor",
+            "category": "process",
+            "priority": 6,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "image",
+                    "strength": 1.0
+                },
+                {
+                    "action": "resize",
+                    "strength": 0.9
+                },
+                {
+                    "action": "crop",
+                    "strength": 0.8
+                },
+                {
+                    "action": "photo",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "emailGenerator",
+            "label": "Email Generator",
+            "category": "output",
+            "priority": 1,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "email",
+                    "strength": 1.0
+                },
+                {
+                    "action": "mail",
+                    "strength": 1.0
+                },
+                {
+                    "action": "send",
+                    "strength": 0.7
+                },
+                {
+                    "action": "notify",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "email"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "slackSender",
+            "label": "Slack Sender",
+            "category": "output",
+            "priority": 2,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "slack",
+                    "strength": 1.0
+                },
+                {
+                    "action": "message",
+                    "strength": 0.7
+                },
+                {
+                    "action": "notify",
+                    "strength": 0.6
+                },
+                {
+                    "action": "send",
+                    "strength": 0.5
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "slack"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "smsSender",
+            "label": "SMS Sender",
+            "category": "output",
+            "priority": 3,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "sms",
+                    "strength": 1.0
+                },
+                {
+                    "action": "text",
+                    "strength": 0.9
+                },
+                {
+                    "action": "notify",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "sms"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "twitterApi",
+            "label": "Twitter/X API",
+            "category": "output",
+            "priority": 4,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "twitter",
+                    "strength": 1.0
+                },
+                {
+                    "action": "tweet",
+                    "strength": 1.0
+                },
+                {
+                    "action": "x",
+                    "strength": 0.9
+                },
+                {
+                    "action": "post",
+                    "strength": 0.5
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "twitter"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "linkedinApi",
+            "label": "LinkedIn API",
+            "category": "output",
+            "priority": 5,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "linkedin",
+                    "strength": 1.0
+                },
+                {
+                    "action": "post",
+                    "strength": 0.5
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "linkedin"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "instagramApi",
+            "label": "Instagram API",
+            "category": "output",
+            "priority": 5,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "instagram",
+                    "strength": 1.0
+                },
+                {
+                    "action": "insta",
+                    "strength": 0.9
+                },
+                {
+                    "action": "post",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "instagram"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "googleSheets",
+            "label": "Google Sheets",
+            "category": "output",
+            "priority": 6,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "sheets",
+                    "strength": 1.0
+                },
+                {
+                    "action": "spreadsheet",
+                    "strength": 0.9
+                },
+                {
+                    "action": "google",
+                    "strength": 0.5
+                },
+                {
+                    "action": "save",
+                    "strength": 0.4
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "google"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "s3Upload",
+            "label": "S3 Upload",
+            "category": "output",
+            "priority": 7,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "s3",
+                    "strength": 1.0
+                },
+                {
+                    "action": "upload",
+                    "strength": 0.8
+                },
+                {
+                    "action": "store",
+                    "strength": 0.7
+                },
+                {
+                    "action": "aws",
+                    "strength": 0.6
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "aws"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "outputLogger",
+            "label": "Output Logger",
+            "category": "output",
+            "priority": 99,
+            "isFallback": true,
+            "capabilities": [
+                {
+                    "action": "log",
+                    "strength": 1.0
+                },
+                {
+                    "action": "print",
+                    "strength": 0.9
+                },
+                {
+                    "action": "output",
+                    "strength": 0.8
+                },
+                {
+                    "action": "display",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": false
+        },
+        {
+            "id": "conditionCheck",
+            "label": "Condition Check",
+            "category": "process",
+            "priority": 10,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "if",
+                    "strength": 1.0
+                },
+                {
+                    "action": "condition",
+                    "strength": 1.0
+                },
+                {
+                    "action": "check",
+                    "strength": 0.8
+                },
+                {
+                    "action": "when",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "delay",
+            "label": "Delay",
+            "category": "process",
+            "priority": 11,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "delay",
+                    "strength": 1.0
+                },
+                {
+                    "action": "wait",
+                    "strength": 1.0
+                },
+                {
+                    "action": "pause",
+                    "strength": 0.9
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "loop",
+            "label": "Loop",
+            "category": "process",
+            "priority": 12,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "loop",
+                    "strength": 1.0
+                },
+                {
+                    "action": "repeat",
+                    "strength": 0.9
+                },
+                {
+                    "action": "iterate",
+                    "strength": 0.8
+                },
+                {
+                    "action": "each",
+                    "strength": 0.7
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        },
+        {
+            "id": "merge",
+            "label": "Merge",
+            "category": "process",
+            "priority": 13,
+            "isFallback": false,
+            "capabilities": [
+                {
+                    "action": "merge",
+                    "strength": 1.0
+                },
+                {
+                    "action": "combine",
+                    "strength": 0.9
+                },
+                {
+                    "action": "join",
+                    "strength": 0.8
+                }
+            ],
+            "compatibleWith": [
+                "process",
+                "output"
+            ],
+            "platforms": [
+                "generic"
+            ],
+            "requiresInput": true,
+            "producesOutput": true
+        }
+    ]
+}

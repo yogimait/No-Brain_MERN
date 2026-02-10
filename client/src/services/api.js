@@ -135,7 +135,7 @@ export const executionAPI = {
   },
 };
 
-// NLP APIs (AI workflow generation)
+// NLP APIs (AI workflow generation - uses Gemini)
 export const nlpAPI = {
   // Generate workflow from text prompt using Gemini
   generateWorkflow: async (prompt, model = 'gemini-2.5-flash') => {
@@ -164,6 +164,37 @@ export const nlpAPI = {
   // Health check for NLP service
   healthCheck: async () => {
     const response = await api.get('/nlp/health');
+    return response.data;
+  },
+};
+
+// Agent APIs (Rule-based workflow generation - NO AI, instant response)
+// 🚀 PRIMARY API FOR PHASE 1 - Use this instead of nlpAPI for workflow generation
+export const agentAPI = {
+  // Generate workflow using rule-based agentic system (deterministic, ~4ms)
+  generateWorkflow: async (prompt) => {
+    const response = await api.post('/agent/generate-workflow', {
+      prompt,
+      mode: 'agentic'  // Explicitly request agentic mode
+    });
+    return response.data;
+  },
+
+  // Get example prompts
+  getExamples: async () => {
+    const response = await api.get('/agent/examples');
+    return response.data;
+  },
+
+  // Get available node types from registry
+  getAvailableNodes: async () => {
+    const response = await api.get('/agent/nodes');
+    return response.data;
+  },
+
+  // Health check for agent service
+  healthCheck: async () => {
+    const response = await api.get('/agent/health');
     return response.data;
   },
 };

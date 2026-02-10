@@ -10,6 +10,7 @@ import workflowRoutes from "./src/routes/workflow.routes.js";
 import executionRoutes from "./src/routes/execution.routes.js";
 import orchestratorRoutes from './src/routes/orchestrator.routes.js';
 import nlpRoutes from './src/routes/nlp.routes.js';
+import agentRoutes from './src/routes/agent.routes.js';
 // import userRoutes from './src/routes/user.routes.js';
 import authRoutes from "./src/routes/auth.routes.js";
 import errorHandler from "./src/middlewares/errorHandler.js";
@@ -61,6 +62,7 @@ app.use(cookieParser());
 // Route declarations
 app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api/nlp', nlpRoutes);
+app.use('/api/agent', agentRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/executions", executionRoutes);

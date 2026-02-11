@@ -39,8 +39,8 @@ const ongoingWorkflows = [
         platform: 'LinkedIn',
         type: 'Social Media',
         nextRun: '2 hours',
-        lastRun: '2 days ago',
-        successRate: 95,
+        lastEdited: '2 days ago',
+        complexity: 95,
         currentStep: 'Content Generated',
         progress: 75,
         estimatedTime: '3 minutes',
@@ -97,8 +97,8 @@ const ongoingWorkflows = [
         platform: 'Mailchimp',
         type: 'Email Marketing',
         nextRun: 'Paused',
-        lastRun: '1 week ago',
-        successRate: 88,
+        lastEdited: '1 week ago',
+        complexity: 88,
         currentStep: 'Subscriber Collection',
         progress: 30,
         estimatedTime: '4 minutes',
@@ -155,8 +155,8 @@ const ongoingWorkflows = [
         platform: 'Multiple',
         type: 'Content',
         nextRun: '30 minutes',
-        lastRun: '6 hours ago',
-        successRate: 92,
+        lastEdited: '6 hours ago',
+        complexity: 92,
         currentStep: 'Article Analysis',
         progress: 60,
         estimatedTime: '5 minutes',
@@ -213,8 +213,8 @@ const ongoingWorkflows = [
         platform: 'Slack',
         type: 'Support',
         nextRun: 'Continuous',
-        lastRun: '5 minutes ago',
-        successRate: 98,
+        lastEdited: '5 minutes ago',
+        complexity: 98,
         currentStep: 'Response Generation',
         progress: 45,
         estimatedTime: '3 minutes',
@@ -442,7 +442,7 @@ const MetricTile = ({ label, value, color, icon }) => {
 const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
     if (!selectedWorkflow) return null;
 
-    const { name, successRate, lastRun, estimatedTime, marketCap, linearSteps, status } = selectedWorkflow;
+    const { name, complexity, lastEdited, estimatedTime, marketCap, linearSteps, status } = selectedWorkflow;
 
     const getStepStatusClasses = (stepStatus) => {
         switch (stepStatus) {
@@ -496,8 +496,8 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                 {/* Key Metrics Grid - Interactive Tiles */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
                     <MetricTile
-                        label="Success Rate"
-                        value={`${successRate}%`}
+                        label="Complexity"
+                        value={`${complexity}%`}
                         color="green"
                         icon={<CheckCircle className="w-5 h-5" />}
                     />
@@ -508,8 +508,8 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                         icon={<Clock className="w-5 h-5" />}
                     />
                     <MetricTile
-                        label="Last Run"
-                        value={lastRun}
+                        label="Last Edited"
+                        value={lastEdited}
                         color="gray"
                         icon={<Zap className="w-5 h-5" />}
                     />
@@ -523,7 +523,7 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
 
                 {/* Linear Chain/Timeline View */}
                 <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400 border-b border-gray-800 pb-2 mb-4">
-                    <GitBranch className="inline-block w-5 h-5 mr-2" /> Execution Timeline
+                    <GitBranch className="inline-block w-5 h-5 mr-2" /> Workflow Steps
                 </h3>
                 <div className="space-y-6">
                     {linearSteps.map((step, index) => (
@@ -559,10 +559,10 @@ const WorkflowDetailModal = ({ selectedWorkflow, onClose }) => {
                 {/* Footer Actions */}
                 <div className="p-4 -mx-8 mt-4 border-t border-purple-900 bg-gray-900 sticky bottom-0 z-20">
                     <Button
-                        onClick={() => { console.log('Re-running workflow'); onClose(); }}
-                        className="w-full bg-green-600 hover:bg-green-700 shadow-lg shadow-green-500/25"
+                        onClick={() => { console.log('Viewing full workflow'); onClose(); }}
+                        className="w-full bg-cyan-600 hover:bg-cyan-700 shadow-lg shadow-cyan-500/25"
                     >
-                        <Activity className="w-4 h-4 mr-2" /> Re-run Workflow
+                        <Brain className="w-4 h-4 mr-2" /> View Full Workflow
                     </Button>
                 </div>
             </div>

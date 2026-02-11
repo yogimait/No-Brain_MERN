@@ -1,32 +1,26 @@
+/**
+ * @deprecated
+ * Execution routes are disabled in NoBrain v2.
+ * All endpoints return 410 Gone for backward compatibility.
+ */
+
 import express from "express";
-import {
-  createExecution,
-  getExecutionsByWorkflow,
-  getExecutionByRunId,
-  updateExecution,
-  getAllExecutions,
-  deleteExecution,
-} from "../controllers/execution.controller.js";
+import ApiResponse from "../utils/ApiResponse.js";
 
 const router = express.Router();
 
-// Create a new execution log
-router.post("/", createExecution);
+const deprecatedHandler = (req, res) => {
+  return res.status(410).json(
+    new ApiResponse(410, null, "Execution logs deprecated in NoBrain v2. NoBrain now focuses on workflow planning & explanation.")
+  );
+};
 
-// Get all executions (with optional query params: workflowId, status, limit, skip)
-router.get("/", getAllExecutions);
-
-// Get all executions for a specific workflow
-router.get("/workflow/:workflowId", getExecutionsByWorkflow);
-
-// Update an execution
-router.put("/:runId", updateExecution);
-
-// Delete an execution by runId (must come before GET /:runId to avoid route conflicts)
-router.delete("/:runId", deleteExecution);
-
-// Get a single execution by runId (must come last to avoid conflicts)
-router.get("/:runId", getExecutionByRunId);
+// 🔴 All execution routes deprecated — return 410 Gone
+router.post("/", deprecatedHandler);
+router.get("/", deprecatedHandler);
+router.get("/workflow/:workflowId", deprecatedHandler);
+router.put("/:runId", deprecatedHandler);
+router.delete("/:runId", deprecatedHandler);
+router.get("/:runId", deprecatedHandler);
 
 export default router;
-

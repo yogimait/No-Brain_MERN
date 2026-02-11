@@ -59,10 +59,12 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 // Route declarations
+// 🔴 Deprecated in v2 — /run returns 410, other endpoints still active
 app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api/nlp', nlpRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/workflows", workflowRoutes);
+// 🔴 Deprecated in v2 — all execution routes return 410 (kept for backward compatibility)
 app.use("/api/executions", executionRoutes);
 // app.use("/api/users", userRoutes);
 

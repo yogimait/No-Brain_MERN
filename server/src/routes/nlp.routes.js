@@ -1,9 +1,9 @@
 // server/src/routes/nlp.routes.js
 
 import express from 'express';
+import ApiResponse from '../utils/ApiResponse.js';
 import {
   generateWorkflow,
-  generateAndRunWorkflow,
   getExamples,
   healthCheck,
   getAvailableNodes
@@ -22,11 +22,14 @@ router.post('/generate', nlpRateLimiter, generateWorkflow);
 
 /**
  * @route   POST /api/nlp/generate-and-run
- * @desc    Generate workflow with Gemini and immediately execute it
- * @access  Public (rate limited)
- * @body    { "prompt": "your prompt here" }
+ * @desc    🔴 DEPRECATED in v2 — Generate + Execute is disabled
+ * @access  Public
  */
-router.post('/generate-and-run', nlpRateLimiter, generateAndRunWorkflow);
+router.post('/generate-and-run', (req, res) => {
+  return res.status(410).json(
+    new ApiResponse(410, null, "Generate-and-run deprecated in NoBrain v2. Use /api/nlp/generate for workflow generation only.")
+  );
+});
 
 /**
  * @route   GET /api/nlp/examples

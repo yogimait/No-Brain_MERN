@@ -40,9 +40,9 @@ export default function LandingPage() {
             </span>
           </h1>
           <div className="max-w-xl text-lg md:text-xl text-gray-300 mt-2 mb-1">
-            Turn your thoughts into powerful automations{" "}
+            Turn your ideas into clear workflow plans{" "}
             <span className="font-bold">instantly</span>. Just describe your goal,
-            drag-and-drop, and let our AI build the perfect workflow.
+            drag-and-drop, and let our AI design the perfect workflow.
           </div>
           <a
             href="/signup"
@@ -66,7 +66,7 @@ export default function LandingPage() {
             Build Smarter, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Not Harder</span>
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Powerful features that transform how you create automated workflows
+            Powerful features that transform how you plan and understand workflows
           </p>
         </div>
 
@@ -106,32 +106,26 @@ export default function LandingPage() {
             </div>
           </BentoTile>
 
-          {/* Medium Tile: Real-time Orchestration */}
+          {/* Medium Tile: Step-by-Step Explainer */}
           <BentoTile
             icon={<Zap className="w-7 h-7" />}
-            title="Real-time Orchestration"
-            description="Watch your workflows execute live. Monitor triggers, track data flow, and debug instantly."
+            title="Step-by-Step Explainer"
+            description="Understand every step of your workflow. Get clear explanations of data flow, logic, and dependencies."
             staggerIndex={2}
           >
-            {/* Mini status preview */}
+            {/* Planning preview */}
             <div className="mt-auto pt-4 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                </span>
-                <span className="text-xs text-gray-400">Trigger activated</span>
+                <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                <span className="text-xs text-gray-400">Step 1 — Fetch data</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                </span>
-                <span className="text-xs text-gray-400">Processing data...</span>
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                <span className="text-xs text-gray-400">Step 2 — Transform payload</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-gray-600" />
-                <span className="text-xs text-gray-500">Awaiting next step</span>
+                <span className="h-2 w-2 rounded-full bg-purple-500" />
+                <span className="text-xs text-gray-400">Step 3 — Send notification</span>
               </div>
             </div>
           </BentoTile>
@@ -140,7 +134,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-6 text-center text-gray-600 text-xs opacity-60 relative z-10">
-        &copy; {new Date().getFullYear()} NoBrain — Smarter Automation. Effortless AI.
+        &copy; {new Date().getFullYear()} NoBrain — AI Workflow Planner & Explainer.
       </footer>
 
       {/* Custom Animations */}

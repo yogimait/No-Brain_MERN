@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReactFlowProvider } from "reactflow";
-import { workflowAPI, executionAPI, authAPI } from "../services/api";
+import { workflowAPI, authAPI } from "../services/api";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "../components/ui/confirmation-dialog";
 import { Vortex } from "../components/ui/vortex";
@@ -98,13 +98,10 @@ export default function DashboardPage() {
 
   // Selected workflow for Hero display
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
-  const [recentExecutions, setRecentExecutions] = useState([]);
+  // 🔴 v2: recentExecutions removed — execution deprecated
 
   const [userStats, setUserStats] = useState({
     totalWorkflows: 0,
-    totalExecutions: 0,
-    successfulExecutions: 0,
-    failedExecutions: 0,
     totalNodes: 0,
     userName: ''
   });
@@ -179,50 +176,13 @@ export default function DashboardPage() {
         return sum + nodes.length;
       }, 0);
 
-      let totalExecutions = 0;
-      let successfulExecutions = 0;
-      let failedExecutions = 0;
-      let execList = [];
-
-      try {
-        const executionsResponse = await executionAPI.getAll({ limit: 1000 });
-        if (executionsResponse && executionsResponse.success && executionsResponse.data) {
-          let allExecutions = [];
-
-          if (executionsResponse.data.executions && Array.isArray(executionsResponse.data.executions)) {
-            allExecutions = executionsResponse.data.executions;
-          } else if (Array.isArray(executionsResponse.data)) {
-            allExecutions = executionsResponse.data;
-          }
-
-          const userWorkflowIds = workflows.map(w => w._id.toString());
-          const userExecutions = allExecutions.filter(execution => {
-            const workflowId = execution.workflowId?._id || execution.workflowId;
-            if (!workflowId) return false;
-            return userWorkflowIds.includes(workflowId.toString());
-          });
-
-          totalExecutions = userExecutions.length;
-          successfulExecutions = userExecutions.filter(e => e.status === 'completed').length;
-          failedExecutions = userExecutions.filter(e => e.status === 'failed').length;
-
-          execList = userExecutions
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 10);
-        }
-      } catch (error) {
-        console.warn('Error fetching executions:', error);
-      }
+      // 🔴 v2: Execution fetching removed — planning mode only
 
       setUserStats({
         totalWorkflows: workflows.length,
-        totalExecutions,
-        successfulExecutions,
-        failedExecutions,
         totalNodes,
         userName
       });
-      setRecentExecutions(execList);
     } catch (error) {
       console.error('Error fetching user stats:', error);
     } finally {
@@ -298,28 +258,12 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Get status icon/color for workflow
+  // 🔴 v2: Simplified — no execution status, just node count indicator
   const getWorkflowStatus = (workflow) => {
-    // Check recent executions for this workflow
-    const exec = recentExecutions.find(e =>
-      (e.workflowId?._id || e.workflowId) === workflow._id
-    );
-    if (!exec) return { color: 'bg-gray-500', label: 'Idle' };
-    switch (exec.status) {
-      case 'completed': return { color: 'bg-green-500', label: 'Done' };
-      case 'running': return { color: 'bg-yellow-500 animate-pulse', label: 'Running' };
-      case 'failed': return { color: 'bg-red-500', label: 'Failed' };
-      default: return { color: 'bg-gray-500', label: 'Idle' };
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed': return <CheckCircle className="w-3 h-3 text-green-400" />;
-      case 'running': return <Play className="w-3 h-3 text-yellow-400 animate-pulse" />;
-      case 'failed': return <AlertCircle className="w-3 h-3 text-red-400" />;
-      default: return <Clock className="w-3 h-3 text-gray-400" />;
-    }
+    const nodeCount = workflow.graph?.nodes?.length || 0;
+    if (nodeCount === 0) return { color: 'bg-gray-500', label: 'Empty' };
+    if (nodeCount < 3) return { color: 'bg-yellow-500', label: 'Draft' };
+    return { color: 'bg-cyan-500', label: 'Ready' };
   };
 
   return (
@@ -593,11 +537,11 @@ export default function DashboardPage() {
                       <div className="h-full flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 bg-blue-500/20 rounded-lg">
-                            <Activity className="w-4 h-4 text-blue-400" />
+                            <Brain className="w-4 h-4 text-blue-400" />
                           </div>
-                          <span className="text-xs text-gray-400">Executions</span>
+                          <span className="text-xs text-gray-400">Mode</span>
                         </div>
-                        <div className="text-3xl font-bold text-white">{userStats.totalExecutions}</div>
+                        <div className="text-lg font-bold text-cyan-300">Planning</div>
                       </div>
                     </BentoTile>
 
@@ -607,9 +551,9 @@ export default function DashboardPage() {
                           <div className="p-1.5 bg-green-500/20 rounded-lg">
                             <CheckCircle className="w-4 h-4 text-green-400" />
                           </div>
-                          <span className="text-xs text-gray-400">Success</span>
+                          <span className="text-xs text-gray-400">Status</span>
                         </div>
-                        <div className="text-3xl font-bold text-white">{userStats.successfulExecutions}</div>
+                        <div className="text-lg font-bold text-green-300">Active</div>
                       </div>
                     </BentoTile>
 
@@ -643,31 +587,34 @@ export default function DashboardPage() {
                     </div>
                   </BentoTile>
 
-                  {/* Activity Log */}
+                  {/* Recent Workflows */}
                   <BentoTile className="flex-1 min-h-[200px]">
                     <div className="h-full flex flex-col p-4">
                       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700/50">
                         <Activity className="w-4 h-4 text-cyan-400" />
-                        <span className="text-sm font-semibold text-white">Recent Activity</span>
+                        <span className="text-sm font-semibold text-white">Recent Workflows</span>
                       </div>
                       <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin">
-                        {recentExecutions.length > 0 ? (
-                          recentExecutions.map((exec, idx) => (
-                            <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors">
-                              {getStatusIcon(exec.status)}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-gray-300 truncate">
-                                  {exec.workflowId?.name || 'Workflow'}
-                                </p>
-                                <p className="text-[10px] text-gray-500">
-                                  {new Date(exec.createdAt).toLocaleTimeString()}
-                                </p>
+                        {workflows.length > 0 ? (
+                          [...workflows]
+                            .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+                            .slice(0, 10)
+                            .map((wf, idx) => (
+                              <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => setSelectedWorkflowId(wf._id)}>
+                                <Brain className="w-3 h-3 text-cyan-400 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-300 truncate">
+                                    {wf.name}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500">
+                                    {wf.graph?.nodes?.length || 0} nodes • {new Date(wf.updatedAt || wf.createdAt).toLocaleDateString()}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          ))
+                            ))
                         ) : (
                           <div className="flex-1 flex items-center justify-center">
-                            <p className="text-xs text-gray-500">No recent activity</p>
+                            <p className="text-xs text-gray-500">No workflows yet</p>
                           </div>
                         )}
                       </div>

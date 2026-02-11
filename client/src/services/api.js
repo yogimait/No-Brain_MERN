@@ -96,44 +96,15 @@ export const workflowAPI = {
   },
 };
 
-// Execution APIs
-export const executionAPI = {
-  // Create a new execution log
-  create: async (executionData) => {
-    const response = await api.post('/executions', executionData);
-    return response.data;
-  },
-
-  // Get all executions (with optional filters)
-  getAll: async (params = {}) => {
-    const response = await api.get('/executions', { params });
-    return response.data;
-  },
-
-  // Get executions by workflow ID
-  getByWorkflow: async (workflowId, params = {}) => {
-    const response = await api.get(`/executions/workflow/${workflowId}`, { params });
-    return response.data;
-  },
-
-  // Get execution by runId
-  getByRunId: async (runId) => {
-    const response = await api.get(`/executions/${runId}`);
-    return response.data;
-  },
-
-  // Update execution
-  update: async (runId, executionData) => {
-    const response = await api.put(`/executions/${runId}`, executionData);
-    return response.data;
-  },
-
-  // Delete execution by runId
-  delete: async (runId) => {
-    const response = await api.delete(`/executions/${runId}`);
-    return response.data;
-  },
-};
+// 🔴 Deprecated in v2 — Execution API disabled
+// export const executionAPI = {
+//   create: async (executionData) => { ... },
+//   getAll: async (params = {}) => { ... },
+//   getByWorkflow: async (workflowId, params = {}) => { ... },
+//   getByRunId: async (runId) => { ... },
+//   update: async (runId, executionData) => { ... },
+//   delete: async (runId) => { ... },
+// };
 
 // NLP APIs (AI workflow generation)
 export const nlpAPI = {
@@ -143,11 +114,8 @@ export const nlpAPI = {
     return response.data;
   },
 
-  // Generate workflow and immediately execute it
-  generateAndRun: async (prompt) => {
-    const response = await api.post('/nlp/generate-and-run', { prompt });
-    return response.data;
-  },
+  // 🔴 Deprecated in v2 — Generate + Execute disabled
+  // generateAndRun: async (prompt) => { ... },
 
   // Get example prompts for testing
   getExamples: async () => {

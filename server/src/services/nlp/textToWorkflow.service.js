@@ -1,18 +1,22 @@
-﻿import { GoogleGenerativeAI } from '@google/generative-ai';
-import systemPrompt from './promptTemplates.js';
-import { getAvailableNodeTypes, isNodeTypeSupported } from '../orchestrator/nodeRegistry.js';
+﻿// server/src/services/nlp/textToWorkflow.service.js
+// Phase-2: Platform-constrained workflow generation with catalog validation
+// Production-grade: Constraint-driven planning engine (not a chatbot wrapper)
+
+import Groq from 'groq-sdk';
+import { buildSystemPrompt, buildRetrySystemPrompt } from './promptTemplates.js';
+import { getNodeLabelsWithTypes, validateNodesAgainstCatalog, getCatalogVersion } from '../../domains/platform/platform.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { getCachedWorkflow, setCachedWorkflow } from './promptCache.js';
 
 dotenv.config();
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 if (!apiKey) {
-  console.error('FATAL ERROR: GEMINI_API_KEY is not defined in environment variables.');
+  console.error('FATAL ERROR: GROQ_API_KEY is not defined in environment variables.');
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
+const groq = new Groq({ apiKey });
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -33,10 +37,11 @@ function isRateLimitError(error) {
     error?.message?.includes('429') ||
     error?.message?.includes('quota') ||
     error?.message?.includes('rate limit') ||
-    error?.message?.toLowerCase().includes('too many requests');
+    error?.message?.toLowerCase?.().includes('too many requests');
 }
 
-// Try to extract JSON output robustly. Supports explicit delimiters and performs cleanup/auto-fix.
+// ── JSON Extraction & Repair Utilities ──
+
 function extractWorkflowJSON(response) {
   if (!response || typeof response !== 'string') {
     throw new Error('AI response is empty');
@@ -44,41 +49,39 @@ function extractWorkflowJSON(response) {
 
   let content = response.trim();
 
-  // Prefer explicit delimiters if present (e.g., <<<JSON>>> ... <<<END_JSON>>>)
+  // Prefer explicit delimiters
   const delimMatch = content.match(/<<<JSON>>>([\s\S]*?)<<<END_JSON>>>/i);
   if (delimMatch && delimMatch[1]) {
     content = delimMatch[1].trim();
   }
 
-  // Remove common code fences and surrounding text
+  // Remove code fences
   content = content.replace(/```json|```/gi, '');
   content = content.replace(/Respond only with the JSON object[:\s]*/i, '');
   content = content.trim();
 
-  // Perform lightweight cleanup: remove trailing commas before array/object closers
+  // Lightweight cleanup: trailing commas
   content = content.replace(/,\s*(?=[}\]])/g, '');
 
-  // Fix unterminated string quotes if present (common with truncated outputs)
+  // Fix unterminated quotes
   content = closeOpenQuotes(content);
 
-  // Auto-balance braces and brackets if possible
+  // Auto-balance braces
   content = autoBalanceBrackets(content);
 
-  // Find the first JSON object in the text
+  // Find JSON object
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('No valid JSON found in AI response');
   }
 
   try {
-    const workflow = JSON.parse(jsonMatch[0]);
-    return workflow;
+    return JSON.parse(jsonMatch[0]);
   } catch (err) {
     throw new Error('Failed to parse JSON from AI response: ' + err.message);
   }
 }
 
-// Auto-balance braces/brackets by appending missing closers (simple heuristic)
 function autoBalanceBrackets(text) {
   const openers = { '{': '}', '[': ']' };
   const stack = [];
@@ -86,27 +89,20 @@ function autoBalanceBrackets(text) {
     const ch = text[i];
     if (ch === '{' || ch === '[') stack.push(openers[ch]);
     else if (ch === '}' || ch === ']') {
-      // pop if matches
       if (stack.length && stack[stack.length - 1] === ch) stack.pop();
-      else {
-        // unmatched closing - ignore
-      }
     }
   }
-  // append missing closers
   if (stack.length) {
     return text + stack.reverse().join('');
   }
   return text;
 }
 
-// Fix unterminated double-quoted strings by attempting to add a closing quote.
 function closeOpenQuotes(text) {
   if (typeof text !== 'string') return text;
   const withoutEscaped = text.replace(/\\"/g, '');
   const quoteCount = (withoutEscaped.match(/"/g) || []).length;
   if (quoteCount % 2 !== 0) {
-    // Try to add a closing quote before the last closing brace if present
     const lastBrace = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'));
     if (lastBrace > -1) {
       return text.slice(0, lastBrace) + '"' + text.slice(lastBrace);
@@ -116,38 +112,27 @@ function closeOpenQuotes(text) {
   return text;
 }
 
-// Enhanced local JSON repair - tries multiple strategies before giving up
 function enhancedLocalJSONRepair(rawResponse) {
   let content = rawResponse;
 
-  // Strategy 1: Extract between delimiters
   const delimMatch = content.match(/<<<JSON>>>([\s\S]*?)<<<END_JSON>>>/i);
   if (delimMatch && delimMatch[1]) {
     content = delimMatch[1];
   }
 
-  // Strategy 2: Remove markdown code fences
   content = content.replace(/```json\s*/gi, '');
   content = content.replace(/```\s*/gi, '');
 
-  // Strategy 3: Find first { and last }
   const firstBrace = content.indexOf('{');
   const lastBrace = content.lastIndexOf('}');
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     content = content.slice(firstBrace, lastBrace + 1);
   }
 
-  // Strategy 4: Remove trailing commas
   content = content.replace(/,\s*(?=[}\]])/g, '');
-
-  // Strategy 5: Fix unterminated strings
   content = closeOpenQuotes(content);
-
-  // Strategy 6: Auto-balance brackets
   content = autoBalanceBrackets(content);
 
-  // Strategy 7: Try to fix common issues
-  // Remove any text after the final }
   const finalBrace = content.lastIndexOf('}');
   if (finalBrace > 0) {
     content = content.slice(0, finalBrace + 1);
@@ -156,115 +141,7 @@ function enhancedLocalJSONRepair(rawResponse) {
   return content.trim();
 }
 
-// Attempt to repair unsupported node types locally using a simple alias map
-function repairUnsupportedTypesLocally(workflow) {
-  if (!workflow || !Array.isArray(workflow.nodes)) return null;
-  const aliases = {
-    'emailsender': 'emailGenerator',
-    'emailservice': 'emailGenerator',
-    'email-service': 'emailGenerator',
-    's3': 's3Upload',
-    's3upload': 's3Upload',
-    'smssender': 'smsSender',
-    'sms': 'smsSender',
-    'googlesheets': 'googleSheets',
-    'google-sheets': 'googleSheets',
-    'calendar': 'calendarEvent',
-    'pagerduty': 'pagerDuty',
-    'pager-duty': 'pagerDuty',
-    'twitter': 'twitterApi',
-    'twitterapi': 'twitterApi',
-    'xapi': 'twitterApi',
-    // Additional common aliases
-    'email': 'emailGenerator',
-    'slack': 'slackSender',
-    'webhook': 'webhookTrigger',
-    'http': 'dataFetcher',
-    'api': 'dataFetcher',
-    'fetch': 'dataFetcher',
-    'scrape': 'webScraper',
-    'scraper': 'webScraper',
-    'summarize': 'aiSummarizer',
-    'summarizer': 'aiSummarizer',
-    'ai': 'aiSummarizer',
-    'transform': 'dataTransformer',
-    'transformer': 'dataTransformer'
-  };
-
-  let changed = false;
-  workflow.nodes.forEach(node => {
-    if (!node || !node.type) return;
-    const norm = String(node.type).toLowerCase().replace(/\s+/g, '').replace(/[_-]/g, '');
-    if (!isNodeTypeSupported(node.type)) {
-      const mapped = aliases[norm];
-      if (mapped && isNodeTypeSupported(mapped)) {
-        console.log(`🔧 Local repair: ${node.type} → ${mapped}`);
-        node.type = mapped;
-        changed = true;
-      } else {
-        // Fallback to dataFetcher for unknown types
-        console.log(`🔧 Local repair: ${node.type} → dataFetcher (fallback)`);
-        node.type = 'dataFetcher';
-        changed = true;
-      }
-    }
-  });
-
-  return changed ? workflow : null;
-}
-
-// Add missing platform-specific nodes when their presence is obvious from labels/data
-function addMissingPlatformNodes(workflow) {
-  if (!workflow || !Array.isArray(workflow.nodes) || !Array.isArray(workflow.edges)) return false;
-
-  const platformKeywords = {
-    'twitter': 'twitterApi',
-    'x.com': 'twitterApi',
-    'linkedin': 'linkedinApi',
-    'instagram': 'instagramApi',
-    'sheets': 'googleSheets',
-    'google sheets': 'googleSheets',
-    'sms': 'smsSender',
-    's3': 's3Upload',
-    'pagerduty': 'pagerDuty',
-    'slack': 'slackSender',
-    'email': 'emailGenerator'
-  };
-
-  // helper to detect keyword in node label or data
-  const mentionsPlatform = (node) => {
-    const checkText = (t) => (t || '').toString().toLowerCase();
-    const combined = checkText(node.data?.label) + ' ' + checkText(node.data?.source) + ' ' + checkText(node.data?.url) + ' ' + checkText(node.label);
-    for (const [kw, handler] of Object.entries(platformKeywords)) {
-      if (combined.includes(kw)) return handler;
-    }
-    return null;
-  };
-
-  // find next numeric id
-  const existingIds = new Set(workflow.nodes.map(n => String(n.id)));
-  let nextId = 1;
-  while (existingIds.has(String(nextId))) nextId++;
-
-  let added = false;
-
-  workflow.nodes.forEach(node => {
-    const requiredHandler = mentionsPlatform(node);
-    if (requiredHandler && !workflow.nodes.some(n => n.type === requiredHandler)) {
-      const newNode = {
-        id: String(nextId++),
-        type: requiredHandler,
-        data: { label: requiredHandler, inferredFor: node.id }
-      };
-      workflow.nodes.unshift(newNode);
-      // Add edge from platform node to the node
-      workflow.edges.push({ source: newNode.id, target: node.id });
-      added = true;
-    }
-  });
-
-  return added;
-}
+// ── Workflow Structure Validation ──
 
 function validateWorkflowStructure(workflow) {
   if (!workflow || typeof workflow !== 'object') throw new Error('Workflow must be an object');
@@ -274,7 +151,9 @@ function validateWorkflowStructure(workflow) {
 
   workflow.nodes.forEach((node, i) => {
     if (!node.id) throw new Error(`Node at index ${i} is missing required field: id`);
-    if (!node.type) throw new Error(`Node ${node.id || i} is missing required field: type`);
+    if (!node.label || typeof node.label !== 'string') {
+      throw new Error(`Node ${node.id || i} is missing required field: label (must be a string)`);
+    }
   });
 
   workflow.edges.forEach((edge, i) => {
@@ -289,84 +168,79 @@ function validateWorkflowStructure(workflow) {
   return true;
 }
 
-function enhanceWorkflow(workflow, userPrompt) {
+// ── Post-Generation Catalog Validation ──
+
+/**
+ * Validates every node label against the platform catalog.
+ * Uses strict fuzzy matching (>90% similarity) for correction.
+ *
+ * @param {Object} workflow - Parsed workflow JSON
+ * @param {string} platform - Platform identifier
+ * @returns {{ valid: boolean, invalidNodes: string[], corrections: {}, error?: string }}
+ */
+function validateAgainstCatalog(workflow, platform) {
+  const nodeLabels = workflow.nodes.map(n => n.label);
+
+  for (let i = 0; i < nodeLabels.length; i++) {
+    if (typeof nodeLabels[i] !== 'string') {
+      console.warn(`⚠️ [Validation] Node at index ${i} has non-string label: ${typeof nodeLabels[i]}`);
+      return {
+        valid: false,
+        invalidNodes: [`Node ${i}: non-string label`],
+        corrections: {},
+        error: `Node at index ${i} has a non-string label`
+      };
+    }
+  }
+
+  return validateNodesAgainstCatalog(platform, nodeLabels);
+}
+
+/**
+ * Apply fuzzy corrections to workflow nodes.
+ * Logs each correction transparently.
+ */
+function applyCorrections(workflow, corrections) {
+  if (!corrections || Object.keys(corrections).length === 0) return;
+
+  workflow.nodes.forEach(node => {
+    if (corrections[node.label]) {
+      const original = node.label;
+      node.label = corrections[original];
+      console.log(`🔧 [Correction] "${original}" → "${node.label}"`);
+    }
+  });
+}
+
+// ── Workflow Enhancement ──
+
+function enhanceWorkflow(workflow, userPrompt, platform) {
+  const catalogVersion = getCatalogVersion(platform);
   return {
     ...workflow,
     metadata: {
       generatedFrom: userPrompt,
       generatedAt: new Date().toISOString(),
-      version: '1.0',
-      aiProvider: 'gemini'
+      version: '2.0',
+      aiProvider: 'groq',
+      platform: platform,
+      catalogVersion: catalogVersion
     }
   };
 }
 
-/**
- * Generate a minimal fallback workflow when AI is unavailable
- * This ensures the app remains functional even without AI
- */
-function generateFallbackWorkflow(userPrompt) {
+// ── Fallback Workflow ──
+
+function generateFallbackWorkflow(userPrompt, platform) {
   console.log('⚠️ Using fallback workflow generator (AI quota exceeded)');
 
-  // Parse prompt for basic keywords to make slightly relevant template
-  const promptLower = userPrompt.toLowerCase();
+  const nodes = [
+    { id: '1', label: 'Schedule Trigger', data: { description: 'Triggers workflow on a schedule' } },
+    { id: '2', label: 'HTTP Request', data: { description: 'Fetches data or sends to external API' } }
+  ];
 
-  let nodes = [];
-  let edges = [];
-
-  // Always start with a data fetcher
-  nodes.push({
-    id: '1',
-    type: 'dataFetcher',
-    data: { label: 'Data Fetcher', description: 'Fetches initial data' }
-  });
-
-  // Add a middle processing node based on keywords
-  if (promptLower.includes('summariz') || promptLower.includes('ai')) {
-    nodes.push({
-      id: '2',
-      type: 'aiSummarizer',
-      data: { label: 'AI Summarizer', description: 'Processes and summarizes data' }
-    });
-  } else if (promptLower.includes('transform') || promptLower.includes('process')) {
-    nodes.push({
-      id: '2',
-      type: 'dataTransformer',
-      data: { label: 'Data Transformer', description: 'Transforms data' }
-    });
-  } else {
-    nodes.push({
-      id: '2',
-      type: 'dataTransformer',
-      data: { label: 'Data Transformer', description: 'Processes data' }
-    });
-  }
-
-  // Add output node based on keywords
-  if (promptLower.includes('email')) {
-    nodes.push({
-      id: '3',
-      type: 'emailGenerator',
-      data: { label: 'Email Generator', description: 'Sends email output' }
-    });
-  } else if (promptLower.includes('slack')) {
-    nodes.push({
-      id: '3',
-      type: 'slackSender',
-      data: { label: 'Slack Sender', description: 'Sends to Slack' }
-    });
-  } else {
-    nodes.push({
-      id: '3',
-      type: 'slackSender',
-      data: { label: 'Output', description: 'Sends notification' }
-    });
-  }
-
-  // Create edges
-  edges = [
-    { source: '1', target: '2' },
-    { source: '2', target: '3' }
+  const edges = [
+    { source: '1', target: '2' }
   ];
 
   return {
@@ -375,25 +249,35 @@ function generateFallbackWorkflow(userPrompt) {
     metadata: {
       generatedFrom: userPrompt,
       generatedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '2.0',
       aiProvider: 'fallback',
+      platform: platform,
+      catalogVersion: getCatalogVersion(platform),
       note: 'Generated using fallback template due to AI quota limits. Please customize as needed.'
     }
   };
 }
 
-/**
- * Call Gemini API with exponential backoff retry
- */
-async function callGeminiWithRetry(model, prompt, maxRetries = MAX_RETRIES) {
+// ── Groq API Call with Retry ──
+
+async function callGroqWithRetry(messages, modelId, maxRetries = MAX_RETRIES) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🤖 Gemini API call attempt ${attempt}/${maxRetries}`);
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
+      console.log(`🤖 Groq API call attempt ${attempt}/${maxRetries}`);
+
+      const completion = await groq.chat.completions.create({
+        messages: messages,
+        model: modelId,
+        temperature: 0.3,
+        max_completion_tokens: 8192,
+        top_p: 0.9,
+        stream: false,
+        stop: null
+      });
+
+      return completion.choices[0]?.message?.content || "";
     } catch (error) {
       lastError = error;
       console.warn(`⚠️ Attempt ${attempt} failed:`, error.message);
@@ -404,11 +288,9 @@ async function callGeminiWithRetry(model, prompt, maxRetries = MAX_RETRIES) {
           console.log(`⏳ Rate limited. Waiting ${delay}ms before retry...`);
           await sleep(delay);
         } else {
-          // All retries exhausted, this is a quota issue
           throw new Error('QUOTA_EXCEEDED');
         }
       } else {
-        // Not a rate limit error, don't retry
         throw error;
       }
     }
@@ -417,22 +299,49 @@ async function callGeminiWithRetry(model, prompt, maxRetries = MAX_RETRIES) {
   throw lastError || new Error('Max retries exceeded');
 }
 
+// ── Parse and Validate Workflow from AI Response ──
+
+function parseAndValidateWorkflow(aiResponse) {
+  let workflow;
+  try {
+    workflow = extractWorkflowJSON(aiResponse);
+    validateWorkflowStructure(workflow);
+  } catch (parseErr) {
+    console.warn('Initial JSON extraction failed:', parseErr.message);
+
+    const repairedContent = enhancedLocalJSONRepair(aiResponse);
+    try {
+      workflow = extractWorkflowJSON(repairedContent);
+      validateWorkflowStructure(workflow);
+      console.log('✅ Local JSON repair successful');
+    } catch (repairErr) {
+      console.error('❌ Local JSON repair failed:', repairErr.message);
+      throw new Error('Failed to parse workflow JSON. The AI response was malformed.');
+    }
+  }
+  return workflow;
+}
+
+// ── Main Generation Function ──
+
 async function generateWorkflowFromText(userPrompt, options = {}) {
   const startTime = Date.now();
   let aiResponse = '';
-  const requestedModel = options.model || 'gemini-2.5-flash';
+  const requestedModel = options.model || 'openai/gpt-oss-20b';
+  const platform = options.platform || 'n8n';
 
   try {
     if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
       throw new Error('Prompt must be a non-empty string');
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY not configured in environment variables');
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY not configured in environment variables');
     }
 
     // Check cache first
-    const cachedResult = getCachedWorkflow(userPrompt, requestedModel);
+    const cacheKey = `${platform}:${userPrompt}`;
+    const cachedResult = getCachedWorkflow(cacheKey, requestedModel);
     if (cachedResult) {
       console.log('🎯 Returning cached workflow result');
       return {
@@ -442,115 +351,132 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
       };
     }
 
-    // Use deterministic generation for structured JSON outputs
-    const model = genAI.getGenerativeModel({
-      model: requestedModel,
-      generationConfig: {
-        temperature: 0.0,
-        topK: 40,
-        topP: 0.9,
-        maxOutputTokens: 1024
+    // ── Load platform catalog with types ──
+    const nodesWithTypes = getNodeLabelsWithTypes(platform);
+    if (nodesWithTypes.length === 0) {
+      throw new Error(`Platform catalog for "${platform}" is unavailable`);
+    }
+
+    console.log(`📋 [Platform] Loaded ${nodesWithTypes.length} nodes for "${platform}"`);
+
+    // Build structured system prompt with catalog injection
+    const systemPrompt = buildSystemPrompt(nodesWithTypes, platform);
+
+    const messages = [
+      {
+        role: "system",
+        content: systemPrompt
+      },
+      {
+        role: "user",
+        content: `Convert this user request into a workflow JSON for the "${platform}" platform:\n\nUser Request: "${userPrompt}"\n\nYour JSON Response:`
       }
-    });
+    ];
 
-    const allowedTypes = getAvailableNodeTypes().join(', ');
-
-    const fullPrompt = `${systemPrompt}\n\nAllowed node types: ${allowedTypes}.\nUse ONLY these node types EXACTLY as listed for the \"type\" field in the JSON. Do NOT invent or use any other node types.\n\nIf the user mentions specific platforms (e.g., Twitter, LinkedIn, Instagram, Google Sheets, Slack, PagerDuty, S3, SMS), you MUST include a dedicated node of the corresponding handler (for example, use the exact string \"twitterApi\" for Twitter).\n\nReturn the JSON between <<<JSON>>> and <<<END_JSON>>>.\n\nExample (use exact type names):\n<<<JSON>>>\n{\n  "nodes": [\n    { "id": "1", "type": "twitterApi", "data": { "source": "twitter", "query": "news" } },\n    { "id": "2", "type": "webScraper", "data": { "url": "https://twitter.com/somehandle", "inputFrom": "1" } }\n  ],\n  "edges": [ { "source": "1", "target": "2" } ]\n}\n<<<END_JSON>>>\n\nNow, convert this user request into a workflow JSON:\n\nUser Request: \"${userPrompt}\"\n\nYour JSON Response:`;
-
-    // Call the model with retry logic
+    // ── First Attempt ──
     try {
-      aiResponse = await callGeminiWithRetry(model, fullPrompt);
+      aiResponse = await callGroqWithRetry(messages, requestedModel);
     } catch (error) {
       if (error.message === 'QUOTA_EXCEEDED') {
-        // Use fallback generator
-        const fallbackWorkflow = generateFallbackWorkflow(userPrompt);
-        const executionTime = Date.now() - startTime;
-
-        const fallbackResult = {
-          success: true,
-          workflow: fallbackWorkflow,
-          prompt: userPrompt,
-          executionTime: `${executionTime}ms`,
-          aiProvider: 'fallback',
-          model: 'none',
-          cost: '0.000000',
-          warning: 'AI quota exceeded. Generated using fallback template. Please customize your workflow.'
-        };
-
-        // Don't cache fallback results
-        return fallbackResult;
+        return buildQuotaExceededResult(userPrompt, platform, startTime);
       }
       throw error;
     }
 
-    // Try to extract and validate JSON - use only local repair
-    let workflow;
-    try {
-      workflow = extractWorkflowJSON(aiResponse);
-      validateWorkflowStructure(workflow);
-    } catch (parseErr) {
-      console.warn('Initial JSON extraction failed:', parseErr.message);
+    // ── Parse and Validate ──
+    let workflow = parseAndValidateWorkflow(aiResponse);
 
-      // Use enhanced local repair only - NO AI retry
-      const repairedContent = enhancedLocalJSONRepair(aiResponse);
+    // ── Catalog Validation ──
+    let catalogValidation = validateAgainstCatalog(workflow, platform);
+
+    // Apply corrections if valid (fuzzy-matched labels)
+    if (catalogValidation.valid) {
+      applyCorrections(workflow, catalogValidation.corrections);
+    }
+
+    // ── Step 6: Smart Single-Retry on Hallucination ──
+    if (!catalogValidation.valid) {
+      console.warn(`⚠️ [Retry] First attempt had ${catalogValidation.invalidNodes.length} hallucinated nodes. Retrying with stricter prompt...`);
+
+      // Build stricter system prompt listing the invalid nodes
+      const retrySystemPrompt = buildRetrySystemPrompt(
+        catalogValidation.invalidNodes,
+        nodesWithTypes,
+        platform
+      );
+
+      const retryMessages = [
+        {
+          role: "system",
+          content: retrySystemPrompt
+        },
+        {
+          role: "user",
+          content: `Convert this user request into a workflow JSON for the "${platform}" platform:\n\nUser Request: "${userPrompt}"\n\nYour JSON Response:`
+        }
+      ];
 
       try {
-        workflow = extractWorkflowJSON(repairedContent);
-        validateWorkflowStructure(workflow);
-        console.log('✅ Local JSON repair successful');
-      } catch (repairErr) {
-        console.error('❌ Local JSON repair failed:', repairErr.message);
-        throw new Error('Failed to parse workflow JSON. The AI response was malformed.');
-      }
-    }
+        const retryResponse = await callGroqWithRetry(retryMessages, requestedModel);
+        const retryWorkflow = parseAndValidateWorkflow(retryResponse);
+        const retryValidation = validateAgainstCatalog(retryWorkflow, platform);
 
-    // Auto-insert platform nodes when obvious (e.g., mention of Twitter, Sheets, SMS, etc.)
-    try {
-      const addedPlatform = addMissingPlatformNodes(workflow);
-      if (addedPlatform) {
-        // re-validate after injection
-        validateWorkflowStructure(workflow);
-      }
-    } catch (err) {
-      console.warn('Platform auto-insert failed:', err.message);
-    }
+        if (retryValidation.valid) {
+          console.log('✅ [Retry] Second attempt succeeded!');
+          applyCorrections(retryWorkflow, retryValidation.corrections);
+          workflow = retryWorkflow;
+          catalogValidation = retryValidation;
+        } else {
+          // Second attempt also failed — reject cleanly
+          const invalidList = retryValidation.invalidNodes.join(', ');
+          console.error(`❌ [Retry] Second attempt also failed — hallucinated nodes: ${invalidList}`);
 
-    // Ensure all node types are supported by our backend - LOCAL REPAIR ONLY
-    const unsupportedTypes = Array.from(new Set(workflow.nodes
-      .map(n => n.type)
-      .filter(t => !isNodeTypeSupported(t))));
-
-    if (unsupportedTypes.length > 0) {
-      console.warn('Unsupported node types found:', unsupportedTypes);
-
-      // Use local alias-based repair only - NO AI call
-      const localRepair = repairUnsupportedTypesLocally(workflow);
-      if (localRepair) {
-        try {
-          validateWorkflowStructure(localRepair);
-          workflow = localRepair;
-          console.log('✅ All unsupported types fixed locally');
-        } catch (vErr) {
-          console.warn('Local repair validation failed:', vErr.message);
+          return {
+            success: false,
+            error: `Workflow contains nodes not available in the ${platform} platform: ${invalidList}. AI failed to self-correct after retry.`,
+            invalidNodes: retryValidation.invalidNodes,
+            prompt: userPrompt,
+            platform: platform,
+            executionTime: `${Date.now() - startTime}ms`,
+            aiProvider: 'groq',
+            retryAttempted: true
+          };
         }
+      } catch (retryError) {
+        console.error('❌ [Retry] Retry attempt failed:', retryError.message);
+        // Fall through to reject with original invalid nodes
+        const invalidList = catalogValidation.invalidNodes.join(', ');
+        return {
+          success: false,
+          error: `Workflow contains hallucinated nodes: ${invalidList}. Retry failed: ${retryError.message}`,
+          invalidNodes: catalogValidation.invalidNodes,
+          prompt: userPrompt,
+          platform: platform,
+          executionTime: `${Date.now() - startTime}ms`,
+          aiProvider: 'groq',
+          retryAttempted: true
+        };
       }
     }
 
-    const enhancedWorkflow = enhanceWorkflow(workflow, userPrompt);
+    console.log(`✅ [Validation] All ${workflow.nodes.length} nodes validated against ${platform} catalog`);
+
+    const enhancedWorkflow = enhanceWorkflow(workflow, userPrompt, platform);
     const executionTime = Date.now() - startTime;
 
     const result = {
       success: true,
       workflow: enhancedWorkflow,
       prompt: userPrompt,
+      platform: platform,
       executionTime: `${executionTime}ms`,
-      aiProvider: 'gemini',
+      aiProvider: 'groq',
       model: requestedModel,
       cost: '0.000000'
     };
 
     // Cache successful result
-    setCachedWorkflow(userPrompt, requestedModel, result);
+    setCachedWorkflow(cacheKey, requestedModel, result);
 
     return result;
 
@@ -558,7 +484,6 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
     console.error('Workflow generation failed:', error.message);
     if (aiResponse) console.error('Raw AI response on failure:', aiResponse);
 
-    // If model explicitly returned INVALID_JSON, make the error message clearer
     let resultErrorMessage = error.message;
     if (aiResponse && /INVALID_JSON/i.test(aiResponse)) {
       resultErrorMessage = 'AI could not produce valid JSON (model returned INVALID_JSON).';
@@ -569,22 +494,42 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
       error: resultErrorMessage,
       rawAIResponse: aiResponse,
       prompt: userPrompt,
+      platform: platform,
       executionTime: `${Date.now() - startTime}ms`,
-      aiProvider: 'gemini'
+      aiProvider: 'groq'
     };
   }
 }
 
+// ── Helper: Quota Exceeded Result ──
+
+function buildQuotaExceededResult(userPrompt, platform, startTime) {
+  const fallbackWorkflow = generateFallbackWorkflow(userPrompt, platform);
+  return {
+    success: true,
+    workflow: fallbackWorkflow,
+    prompt: userPrompt,
+    platform: platform,
+    executionTime: `${Date.now() - startTime}ms`,
+    aiProvider: 'fallback',
+    model: 'none',
+    cost: '0.000000',
+    warning: 'AI quota exceeded. Generated using fallback template. Please customize your workflow.'
+  };
+}
+
+// ── Example Prompts ──
+
 function getExamplePrompts() {
   return [
-    "Fetch data from an API and send it to Slack",
-    "Get tweets about AI, summarize them, and email me the summary",
-    "Scrape a website, transform the data, and send to Slack",
-    "Fetch data, summarize it, and send notifications",
-    "Get customer feedback, analyze it with AI, and email results",
-    "Monitor social media, extract trends, and notify team",
-    "Collect survey responses, summarize insights, and share via email",
-    "Fetch news articles, filter by topic, and post to Slack"
+    "When a new row is added in Google Sheets, send a Slack notification",
+    "Every morning, fetch RSS feed items and email me a summary",
+    "When a GitHub issue is created, post it to Discord and log in Notion",
+    "Monitor a website for changes and notify me via Telegram",
+    "When a new Stripe payment comes in, update Google Sheets and send a receipt email",
+    "Collect Typeform responses, enrich with Clearbit, and add to HubSpot",
+    "When a Jira ticket is resolved, update Confluence and notify the team via Slack",
+    "Fetch weather data daily and send SMS alerts for severe conditions"
   ];
 }
 

@@ -5,7 +5,7 @@ import ApiResponse from "../utils/ApiResponse.js";
 
 // Create a new workflow
 const createWorkflow = asyncHandler(async (req, res) => {
-  const { name, graph, ownerId, isPublic, description } = req.body;
+  const { name, graph, ownerId, isPublic, description, platform } = req.body;
 
   // Validate required fields
   if (!name || !graph || !ownerId) {
@@ -23,6 +23,7 @@ const createWorkflow = asyncHandler(async (req, res) => {
     ownerId,
     isPublic: isPublic || false,
     description,
+    platform: platform || 'legacy',
   });
 
   return res

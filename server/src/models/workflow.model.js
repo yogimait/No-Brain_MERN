@@ -17,6 +17,13 @@ const workflowSchema = new mongoose.Schema(
       // ref: "User", // Will add User model later when auth is implemented
       required: [true, "Owner ID is required"],
     },
+    // Phase-2: Platform field
+    platform: {
+      type: String,
+      required: true,
+      enum: ['legacy', 'n8n'],
+      default: 'legacy', // Old workflows (Phase-1) default to "legacy"
+    },
     isPublic: {
       type: Boolean,
       default: false, // For public templates
@@ -36,4 +43,3 @@ workflowSchema.index({ name: "text", description: "text" });
 workflowSchema.index({ ownerId: 1 });
 
 export const Workflow = mongoose.model("Workflow", workflowSchema);
-

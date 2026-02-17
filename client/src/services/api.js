@@ -108,9 +108,9 @@ export const workflowAPI = {
 
 // NLP APIs (AI workflow generation)
 export const nlpAPI = {
-  // Generate workflow from text prompt using Gemini
-  generateWorkflow: async (prompt, model = 'gemini-2.5-flash') => {
-    const response = await api.post('/nlp/generate', { prompt, model });
+  // Generate workflow from text prompt using Groq
+  generateWorkflow: async (prompt, model = 'openai/gpt-oss-20b', platform = 'n8n') => {
+    const response = await api.post('/nlp/generate', { prompt, model, platform });
     return response.data;
   },
 

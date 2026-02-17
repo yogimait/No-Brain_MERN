@@ -60,6 +60,7 @@ export default function WorkflowEditorPage() {
 
   const location = useLocation();
   const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
+  const [currentPlatform, setCurrentPlatform] = useState('legacy');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
   // 🔴 Deprecated in v2 — execution state removed
@@ -70,7 +71,7 @@ export default function WorkflowEditorPage() {
     switch (label) {
       case 'Web Scraper': return <Plug size={16} />;
       case 'AI Summarizer': return <Rows size={16} />;
-      case 'Gemini API': return <Brain size={16} />;
+      case 'Groq API': return <Brain size={16} />;
       case 'GPT-4': return <Brain size={16} />;
       case 'Claude': return <Brain size={16} />;
       case 'Twitter API': return <Plug size={16} />;
@@ -147,6 +148,7 @@ export default function WorkflowEditorPage() {
         console.log('✅ Using workflowData from location.state');
         setCurrentWorkflowId(workflowId || workflowData._id);
         setWorkflowName(workflowData.name || '');
+        setCurrentPlatform(workflowData.platform || 'legacy');
         const processedNodes = processNodes(workflowData.graph.nodes);
         console.log('📊 Processed nodes:', processedNodes);
         setNodes(processedNodes);
@@ -226,7 +228,7 @@ export default function WorkflowEditorPage() {
     setTimeout(() => setShowPromptBox(false), 300);
   };
 
-  // Handle AI Command Center prompt - call Gemini to modify the workflow
+  // Handle AI Command Center prompt - call AI to modify the workflow
   const handleSendPrompt = async () => {
     if (!promptInput.trim()) {
       toast.error('Please describe the workflow change you want');
@@ -242,10 +244,10 @@ export default function WorkflowEditorPage() {
 
       console.log('🤔 Sending workflow modification prompt to Gemini:', modificationPrompt);
 
-      // Call Gemini API to generate modified workflow
+      // Call AI API to generate modified workflow
       const response = await nlpAPI.generateWorkflow(modificationPrompt);
 
-      console.log('✅ Gemini response for modification:', response);
+      console.log('✅ AI response for modification:', response);
 
       if (response && response.success && response.data && response.data.workflow) {
         const modifiedWorkflow = response.data.workflow;
@@ -313,7 +315,7 @@ export default function WorkflowEditorPage() {
         setEdges(newEdges);
 
         toast.success(`✨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
-        console.log('✅ Workflow successfully modified with Gemini AI');
+        console.log('✅ Workflow successfully modified with AI');
       } else {
         throw new Error(response?.error || 'Failed to generate modified workflow');
       }
@@ -328,12 +330,12 @@ export default function WorkflowEditorPage() {
     }
   };
 
-  // Load AI-generated workflow from Gemini API response
+  // Load AI-generated workflow from AI API response
   useEffect(() => {
     const aiGeneratedWorkflow = location.state?.aiGeneratedWorkflow;
 
     if (aiGeneratedWorkflow && nodes.length === 0) {
-      console.log('ðŸ“Š Loading AI-generated workflow from Gemini:', aiGeneratedWorkflow);
+      console.log('ðŸ“Š Loading AI-generated workflow:', aiGeneratedWorkflow);
 
       try {
         // Robust processing: ensure nodes have ids and labels, map edges by id or label
@@ -409,6 +411,13 @@ export default function WorkflowEditorPage() {
         if (aiGeneratedWorkflow.metadata?.generatedFrom) {
           const suggestedName = `AI Generated - ${new Date().toLocaleDateString()}`;
           setWorkflowName(suggestedName);
+        }
+
+        // Phase-2: Store platform from AI metadata
+        if (aiGeneratedWorkflow.metadata?.platform) {
+          setCurrentPlatform(aiGeneratedWorkflow.metadata.platform);
+        } else if (location.state?.platform) {
+          setCurrentPlatform(location.state.platform);
         }
 
         console.log('âœ… AI workflow loaded:', {
@@ -573,6 +582,7 @@ export default function WorkflowEditorPage() {
         },
         ownerId: ownerId,
         description: `Workflow with ${nodes.length} nodes`,
+        platform: currentPlatform,
       };
 
       console.log('Saving workflow:', workflowData);

@@ -7,6 +7,8 @@ import { ReactFlowProvider } from 'reactflow';
 import Sidebar from '../components/Sidebar';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 import NodeConfigPanel from '../components/NodeConfigPanel';
+import ExplainabilityPanel from '../components/ExplainabilityPanel';
+import RecreationPanel from '../components/RecreationPanel';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
@@ -27,11 +29,13 @@ import {
   X,
   ArrowLeft,
   Edit,
-  Text
+  Text,
+  BookOpen,
+  Hammer
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
-import { workflowAPI, executionAPI, nlpAPI } from '../services/api';
+import { workflowAPI, nlpAPI, planningAPI } from '../services/api';
 import { mapLabelToHandler, mapHandlerToDisplayLabel, nodeLabelToHandler } from '../services/nodeTypeMap';
 import { getNodeByHandler, getIconForHandler, getDisplayLabel, isValidHandler } from '../services/nodeRegistry.jsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,9 +50,8 @@ export default function WorkflowEditorPage() {
   const [edges, setEdges] = useState([]);
   const [availableNodeTypes, setAvailableNodeTypes] = useState([]);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [showTestResults, setShowTestResults] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResults, setTestResults] = useState([]);
+  // 🔴 Deprecated in v2 — execution state removed
+  // showTestResults, isTesting, testResults removed
   const [workflowName, setWorkflowName] = useState("");
   const [showPromptBox, setShowPromptBox] = useState(false);
   const [isPromptBoxVisible, setIsPromptBoxVisible] = useState(false);
@@ -61,18 +64,29 @@ export default function WorkflowEditorPage() {
 
   const location = useLocation();
   const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
+  const [currentPlatform, setCurrentPlatform] = useState('legacy');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [runResults, setRunResults] = useState(null);
-  const [showRunResults, setShowRunResults] = useState(false);
+
+  // Phase-6: Explainability state
+  const [showExplainPanel, setShowExplainPanel] = useState(false);
+  const [explainData, setExplainData] = useState(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [lastExplainedHash, setLastExplainedHash] = useState('');
+
+  // Phase-7: Recreation state
+  const [showRecreatePanel, setShowRecreatePanel] = useState(false);
+  const [recreateData, setRecreateData] = useState(null);
+  const [recreateLoading, setRecreateLoading] = useState(false);
+  // 🔴 Deprecated in v2 — execution state removed
+  // isRunning, runResults, showRunResults removed
 
   // Helper function to get icon based on label/type - defined before useEffect
   const getIconForLabel = (label) => {
     switch (label) {
       case 'Web Scraper': return <Plug size={16} />;
       case 'AI Summarizer': return <Rows size={16} />;
-      case 'Gemini API': return <Brain size={16} />;
+      case 'Groq API': return <Brain size={16} />;
       case 'GPT-4': return <Brain size={16} />;
       case 'Claude': return <Brain size={16} />;
       case 'Twitter API': return <Plug size={16} />;
@@ -149,6 +163,7 @@ export default function WorkflowEditorPage() {
         console.log('✅ Using workflowData from location.state');
         setCurrentWorkflowId(workflowId || workflowData._id);
         setWorkflowName(workflowData.name || '');
+        setCurrentPlatform(workflowData.platform || 'legacy');
         const processedNodes = processNodes(workflowData.graph.nodes);
         console.log('📊 Processed nodes:', processedNodes);
         setNodes(processedNodes);
@@ -228,7 +243,7 @@ export default function WorkflowEditorPage() {
     setTimeout(() => setShowPromptBox(false), 300);
   };
 
-  // Handle AI Command Center prompt - call Gemini to modify the workflow
+  // Handle AI Command Center prompt - call AI to modify the workflow
   const handleSendPrompt = async () => {
     if (!promptInput.trim()) {
       toast.error('Please describe the workflow change you want');
@@ -244,10 +259,10 @@ export default function WorkflowEditorPage() {
 
       console.log('🤔 Sending workflow modification prompt to Gemini:', modificationPrompt);
 
-      // Call Gemini API to generate modified workflow
+      // Call AI API to generate modified workflow
       const response = await nlpAPI.generateWorkflow(modificationPrompt);
 
-      console.log('✅ Gemini response for modification:', response);
+      console.log('✅ AI response for modification:', response);
 
       if (response && response.success && response.data && response.data.workflow) {
         const modifiedWorkflow = response.data.workflow;
@@ -315,7 +330,7 @@ export default function WorkflowEditorPage() {
         setEdges(newEdges);
 
         toast.success(`✨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
-        console.log('✅ Workflow successfully modified with Gemini AI');
+        console.log('✅ Workflow successfully modified with AI');
       } else {
         throw new Error(response?.error || 'Failed to generate modified workflow');
       }
@@ -330,12 +345,12 @@ export default function WorkflowEditorPage() {
     }
   };
 
-  // Load AI-generated workflow from Gemini API response
+  // Load AI-generated workflow from AI API response
   useEffect(() => {
     const aiGeneratedWorkflow = location.state?.aiGeneratedWorkflow;
 
     if (aiGeneratedWorkflow && nodes.length === 0) {
-      console.log('ðŸ“Š Loading AI-generated workflow from Gemini:', aiGeneratedWorkflow);
+      console.log('ðŸ“Š Loading AI-generated workflow:', aiGeneratedWorkflow);
 
       try {
         // Robust processing: ensure nodes have ids and labels, map edges by id or label
@@ -413,6 +428,13 @@ export default function WorkflowEditorPage() {
           setWorkflowName(suggestedName);
         }
 
+        // Phase-2: Store platform from AI metadata
+        if (aiGeneratedWorkflow.metadata?.platform) {
+          setCurrentPlatform(aiGeneratedWorkflow.metadata.platform);
+        } else if (location.state?.platform) {
+          setCurrentPlatform(location.state.platform);
+        }
+
         console.log('âœ… AI workflow loaded:', {
           nodesCount: processedNodes.length,
           edgesCount: processedEdges.length
@@ -480,218 +502,167 @@ export default function WorkflowEditorPage() {
     setSelectedNodeId(id);
   };
 
-  const runTest = async () => {
+  // 🔴 v2: Validate Structure replaces Test — validates graph without executing
+  const handleValidateStructure = () => {
     if (nodes.length === 0) {
-      toast.error('Please add at least one node to test.');
+      toast.error('Please add at least one node to validate.');
       return;
     }
 
-    setIsTesting(true);
-    setShowTestResults(true);
+    const issues = [];
 
-    const startTime = Date.now();
-
-    // Simulate test execution for each node
-    const testResults = [];
-
-    for (const node of nodes) {
-      const nodeStartTime = Date.now();
-      // Simulate test delay
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
-
-      const success = Math.random() > 0.2; // 80% success rate
-
-      // Include node configuration in the test result
-      const nodeConfig = {
-        credentials: node.data?.credentials || {},
-        aiModel: node.data?.aiModel || null,
-        aiMemory: node.data?.aiMemory || null,
-        aiMemorySize: node.data?.aiMemorySize || null,
-        aiTemperature: node.data?.aiTemperature || null,
-        storageEnabled: node.data?.storageEnabled || false,
-      };
-
-      testResults.push({
-        nodeId: node.id,
-        nodeName: node.data?.label || node.id,
-        status: success ? 'completed' : 'failed',
-        input: { nodeId: node.id, nodeType: node.data?.label },
-        output: success ? { success: true, message: `Successfully connected to ${node.data?.label || node.id}` } : null,
-        error: success ? null : `Failed to connect to ${node.data?.label || node.id}. Check credentials.`,
-        startTime: new Date(nodeStartTime).toISOString(),
-        endTime: new Date(Date.now()).toISOString(),
-        // Include node configuration in the log
-        nodeConfig: nodeConfig,
-      });
+    // Check for disconnected nodes
+    const connectedIds = new Set();
+    edges.forEach(e => { connectedIds.add(e.source); connectedIds.add(e.target); });
+    const disconnected = nodes.filter(n => !connectedIds.has(n.id) && nodes.length > 1);
+    if (disconnected.length > 0) {
+      issues.push(`${disconnected.length} disconnected node(s): ${disconnected.map(n => n.data?.label || n.id).join(', ')}`);
     }
 
-    const totalDuration = Date.now() - startTime;
-
-    // Save test results to backend
-    try {
-      let workflowId = currentWorkflowId;
-
-      // If no workflow exists yet, create one automatically for testing
-      if (!workflowId && nodes.length > 0) {
-        const ownerId = getUserId();
-        if (!ownerId) {
-          toast.error("Please login to test workflows");
-          navigate("/login");
-          return;
-        }
-
-        const workflowData = {
-          name: workflowName.trim() || `Test Workflow ${Date.now()}`,
-          graph: {
-            nodes: nodes,
-            edges: edges,
-          },
-          ownerId: ownerId,
-          description: `Auto-created for testing with ${nodes.length} nodes`,
-        };
-
-        console.log('Creating workflow for testing:', workflowData);
-        const response = await workflowAPI.create(workflowData);
-        console.log('Workflow created:', response);
-
-        // Handle ApiResponse format: response is { success, data, message }
-        // The workflow object is in response.data
-        if (response && response.success && response.data) {
-          workflowId = response.data._id;
-          setCurrentWorkflowId(workflowId);
-          if (!workflowName.trim()) {
-            setWorkflowName(workflowData.name);
-          }
-        } else {
-          throw new Error('Failed to create workflow: ' + JSON.stringify(response));
-        }
+    // Check for cycles (simple DFS)
+    const adj = new Map();
+    nodes.forEach(n => adj.set(n.id, []));
+    edges.forEach(e => { if (adj.has(e.source)) adj.get(e.source).push(e.target); });
+    const visited = new Set();
+    const inStack = new Set();
+    let hasCycle = false;
+    const dfs = (id) => {
+      visited.add(id); inStack.add(id);
+      for (const neighbor of (adj.get(id) || [])) {
+        if (inStack.has(neighbor)) { hasCycle = true; return; }
+        if (!visited.has(neighbor)) dfs(neighbor);
+        if (hasCycle) return;
       }
+      inStack.delete(id);
+    };
+    nodes.forEach(n => { if (!visited.has(n.id)) dfs(n.id); });
+    if (hasCycle) issues.push('Cycle detected — workflows must be acyclic (DAG).');
 
-      if (workflowId) {
-        // Determine overall status - include both passed and failed tests
-        const allCompleted = testResults.every(r => r.status === 'completed');
-        const allFailed = testResults.every(r => r.status === 'failed');
-        let overallStatus = 'completed';
-        if (allFailed) {
-          overallStatus = 'failed';
-        } else if (testResults.some(r => r.status === 'failed')) {
-          overallStatus = 'failed'; // If any node failed, mark as failed
-        }
+    // Check for missing labels
+    const unlabeled = nodes.filter(n => !n.data?.label);
+    if (unlabeled.length > 0) issues.push(`${unlabeled.length} node(s) without labels.`);
 
-        const executionData = {
-          workflowId: workflowId,
-          status: overallStatus,
-          nodeLogs: testResults, // Include all node logs (both passed and failed)
-          duration: totalDuration,
-          error: testResults.some(r => r.error) ? 'Some nodes failed during testing' : null,
-          startedAt: new Date(startTime).toISOString(),
-          completedAt: new Date().toISOString(),
-        };
+    // Check for entry point
+    const hasIncoming = new Set(edges.map(e => e.target));
+    const entryPoints = nodes.filter(n => !hasIncoming.has(n.id));
+    if (entryPoints.length === 0 && nodes.length > 1) issues.push('No entry point found — every node has incoming edges.');
 
-        console.log('Saving execution log:', executionData);
-        const executionResponse = await executionAPI.create(executionData);
-        console.log('Execution saved:', executionResponse);
-
-        // Handle ApiResponse format
-        if (executionResponse && executionResponse.success) {
-          console.log('Execution saved successfully to logs');
-          toast.success(`Test ${overallStatus === 'completed' ? 'passed' : 'completed with failures'}. Check the Logs page to see all results.`);
-        } else {
-          console.warn('Execution may not have been saved properly:', executionResponse);
-          toast.warning('Test completed but may not have been saved to logs');
-        }
-      } else {
-        console.error('No workflowId available to save execution');
-        toast.warning('Test completed but could not save to logs. Please save the workflow first.');
-      }
-
-      // Convert to display format
-      const displayResults = testResults.map(r => ({
-        id: r.nodeId,
-        name: r.nodeName,
-        status: r.status === 'completed' ? 'success' : 'error',
-        message: r.output?.message || r.error || 'Unknown error',
-        duration: Date.parse(r.endTime) - Date.parse(r.startTime),
-        timestamp: r.startTime,
-      }));
-
-      setTestResults(displayResults);
-      setIsTesting(false);
-
-      // Success message is now shown in the save section above
-    } catch (error) {
-      console.error('Error saving test results:', error);
-      console.error('Error details:', error.response?.data || error.message);
-
-      // Still show results even if saving failed
-      const displayResults = testResults.map(r => ({
-        id: r.nodeId,
-        name: r.nodeName,
-        status: r.status === 'completed' ? 'success' : 'error',
-        message: r.output?.message || r.error || 'Unknown error',
-        duration: Date.parse(r.endTime) - Date.parse(r.startTime),
-        timestamp: r.startTime,
-      }));
-      setTestResults(displayResults);
-      setIsTesting(false);
-
-      toast.error(`Test completed but failed to save to logs: ${error.message || 'Unknown error'}. Check console for details.`);
+    if (issues.length === 0) {
+      toast.success(`✅ Workflow structure is valid — ${nodes.length} nodes, ${edges.length} connections.`);
+    } else {
+      issues.forEach(issue => toast.warning(issue));
+      toast.info(`Validation found ${issues.length} issue(s).`);
     }
   };
 
-  const handleRunWorkflow = async () => {
+  // 🔴 v2: Preview Logic replaces Run — no execution, planning mode only
+  const handlePreviewLogic = () => {
     if (nodes.length === 0) {
-      toast.error('Please add at least one node to run the workflow.');
+      toast.error('Please add at least one node to preview.');
+      return;
+    }
+    toast.info(
+      `📋 NoBrain v2 focuses on workflow planning & explanation. ` +
+      `Your workflow has ${nodes.length} nodes and ${edges.length} connections. ` +
+      `Use "Validate Structure" to check for issues.`
+    );
+  };
+
+  // Phase-6: Explain workflow — deterministic, no AI
+  const handleExplainWorkflow = async () => {
+    if (nodes.length === 0) {
+      toast.error('Please add at least one node to explain.');
       return;
     }
 
-    setIsRunning(true);
-    try {
-      const payload = {
-        nodes: nodes.map((node) => ({
-          id: node.id,
-          type: node.data?.handlerType || mapLabelToHandler(node.data?.label),
-          data: node.data
-        })),
-        edges: edges.map((e) => ({ source: e.source, target: e.target }))
-      };
+    setShowExplainPanel(true);
+    setShowRecreatePanel(false); // Close recreate panel when explain opens
+    setExplainLoading(true);
 
-      console.log('Running workflow with payload:', payload);
-      const response = await executionAPI.run(payload);
-      console.log('Run response:', response);
+    try {
+      // Prepare nodes with labels for the explain API
+      const apiNodes = nodes.map(n => ({
+        id: n.id,
+        label: n.data?.label || n.label || n.id,
+        data: { description: n.data?.description || '' }
+      }));
+
+      const apiEdges = edges.map(e => ({
+        source: e.source,
+        target: e.target
+      }));
+
+      const response = await planningAPI.explain(apiNodes, apiEdges, currentPlatform);
 
       if (response && response.success && response.data) {
-        const result = response.data;
-        // Save run results to local state and display
-        setRunResults(result);
-        setShowRunResults(true);
-
-        // Also persist as an Execution log in the backend if we have a workflowId
-        if (currentWorkflowId) {
-          const executionData = {
-            workflowId: currentWorkflowId,
-            status: result.status || (result.failedNode ? 'failed' : 'completed'),
-            nodeLogs: result.logs || [],
-            duration: typeof result.executionTime === 'string' ? Number((result.executionTime || '0').replace(/[^0-9]/g, '')) : result.executionTime || 0,
-            runId: result.runId
-          };
-          try {
-            const saveResp = await executionAPI.create(executionData);
-            console.log('Saved execution log:', saveResp);
-          } catch (err) {
-            console.warn('Failed to save execution log:', err);
-          }
-        }
-
-        toast.success('Workflow executed. Check the results panel.');
+        setExplainData(response.data);
+        // Store hash to detect structural changes
+        const hash = JSON.stringify(apiNodes.map(n => n.id + n.label).sort()) + JSON.stringify(apiEdges.map(e => e.source + e.target).sort());
+        setLastExplainedHash(hash);
       } else {
-        toast.error('Workflow run failed. Check console for details.');
+        setExplainData({ success: false, error: response?.message || 'Failed to generate explanation' });
       }
-    } catch (err) {
-      console.error('Error running workflow:', err);
-      toast.error('Workflow run failed: ' + (err.message || 'Unknown'));
+    } catch (error) {
+      console.error('Explain workflow error:', error);
+      setExplainData({
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to generate explanation'
+      });
     } finally {
-      setIsRunning(false);
+      setExplainLoading(false);
+    }
+  };
+
+  // Phase-6: Auto-retrigger explanation on structural graph changes
+  // Only on node add/delete, edge add/remove — NOT on position drag
+  useEffect(() => {
+    if (!showExplainPanel || nodes.length === 0) return;
+
+    const apiNodes = nodes.map(n => ({
+      id: n.id,
+      label: n.data?.label || n.label || n.id
+    }));
+    const apiEdges = edges.map(e => ({ source: e.source, target: e.target }));
+    const currentHash = JSON.stringify(apiNodes.map(n => n.id + n.label).sort()) + JSON.stringify(apiEdges.map(e => e.source + e.target).sort());
+
+    if (currentHash !== lastExplainedHash && lastExplainedHash !== '') {
+      // Debounce re-trigger
+      const timer = setTimeout(() => {
+        handleExplainWorkflow();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [nodes.length, edges.length, showExplainPanel]);
+
+  // Phase-7: Recreation guide handler (user-controlled, no auto-trigger)
+  const handleRecreateWorkflow = async () => {
+    if (nodes.length === 0) {
+      toast.error('Add at least one node before generating a recreation guide.');
+      return;
+    }
+
+    setShowRecreatePanel(true);
+    setShowExplainPanel(false); // Close explain panel when recreate opens
+    setRecreateLoading(true);
+
+    try {
+      const apiNodes = nodes.map(n => ({
+        id: n.id,
+        label: n.data?.label || n.label || n.id,
+        data: { description: n.data?.description || '' }
+      }));
+      const apiEdges = edges.map(e => ({ source: e.source, target: e.target }));
+
+      const response = await planningAPI.recreate(apiNodes, apiEdges, currentPlatform);
+      setRecreateData(response.data);
+    } catch (error) {
+      console.error('Recreate workflow error:', error);
+      setRecreateData({
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to generate recreation guide'
+      });
+    } finally {
+      setRecreateLoading(false);
     }
   };
 
@@ -724,6 +695,7 @@ export default function WorkflowEditorPage() {
         },
         ownerId: ownerId,
         description: `Workflow with ${nodes.length} nodes`,
+        platform: currentPlatform,
       };
 
       console.log('Saving workflow:', workflowData);
@@ -839,29 +811,41 @@ export default function WorkflowEditorPage() {
                 variant="outline"
                 size="sm"
                 className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
-                onClick={runTest}
-                disabled={nodes.length === 0 || isTesting}
+                onClick={handleValidateStructure}
+                disabled={nodes.length === 0}
               >
-                {isTesting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Play className="w-4 h-4 mr-2" />
-                )}
-                Test
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Validate Structure
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
-                onClick={handleRunWorkflow}
-                disabled={nodes.length === 0 || isRunning}
+                onClick={handlePreviewLogic}
+                disabled={nodes.length === 0}
               >
-                {isRunning ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Rocket className="w-4 h-4 mr-2" />
-                )}
-                Run
+                <Brain className="w-4 h-4 mr-2" />
+                Preview Logic
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                onClick={handleExplainWorkflow}
+                disabled={nodes.length === 0}
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                Explain
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                onClick={handleRecreateWorkflow}
+                disabled={nodes.length === 0}
+              >
+                <Hammer className="w-4 h-4 mr-2" />
+                Recreate
               </Button>
 
               <Button
@@ -897,7 +881,6 @@ export default function WorkflowEditorPage() {
         <ReactFlowProvider>
           <Sidebar addNode={addNode} />
           <div className="flex-1 relative">
-
             <WorkflowCanvas
               nodes={nodes}
               setNodes={setNodes}
@@ -906,6 +889,20 @@ export default function WorkflowEditorPage() {
               onNodeClick={selectNode}
             />
           </div>
+          {showExplainPanel && (
+            <ExplainabilityPanel
+              data={explainData}
+              loading={explainLoading}
+              onClose={() => setShowExplainPanel(false)}
+            />
+          )}
+          {showRecreatePanel && (
+            <RecreationPanel
+              data={recreateData}
+              loading={recreateLoading}
+              onClose={() => setShowRecreatePanel(false)}
+            />
+          )}
           {selectedNodeId && (
             <NodeConfigPanel
               node={nodes.find((n) => n.id === selectedNodeId) || null}
@@ -916,143 +913,7 @@ export default function WorkflowEditorPage() {
         </ReactFlowProvider>
       </main>
 
-      {/* Test Results Sidebar (Using Blue/Cyan Accents) */}
-      {showTestResults && (
-        <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Test Results</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTestResults(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                Ã—
-              </Button>
-            </div>
-
-            {isTesting ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                  <span className="text-gray-300">Running tests...</span>
-                </div>
-                <div className="space-y-2">
-                  {nodes.map((node) => (
-                    <div key={node.id} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" />
-                      <span className="text-gray-300 text-sm">{node.data.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-gray-300">Test completed</span>
-                </div>
-
-                {testResults.map((result) => (
-                  <Card key={result.id} className="p-4 bg-gray-800/50 border-gray-600">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {result.status === 'success' ? (
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5 text-red-400" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-white font-medium text-sm">{result.name}</h3>
-                        <p className={`text-xs mt-1 ${result.status === 'success' ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                          {result.message}
-                        </p>
-                        <p className="text-gray-500 text-xs mt-2">
-                          Duration: {result.duration}ms
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-
-                <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-300 font-medium text-sm">Summary</span>
-                  </div>
-                  <p className="text-gray-300 text-xs">
-                    {testResults.filter(r => r.status === 'success').length} of {testResults.length} tests passed
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* ðŸš€ ENHANCED PROMPT DRAGGABLE BOX START (Blue Theme) ðŸš€ */}
-      {/* Run Results Sidebar */}
-      {showRunResults && runResults && (
-        <div className="absolute top-16 right-0 w-96 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 z-20 overflow-y-auto">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Run Results â€¢ {runResults.runId}</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowRunResults(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                Ã—
-              </Button>
-            </div>
-
-            {runResults.logs && runResults.logs.length === 0 ? (
-              <p className="text-xs text-gray-500 text-center py-2">No nodes executed or logs available</p>
-            ) : (
-              runResults.logs.map((log, idx) => (
-                (() => {
-                  const nodeLabel = nodes.find(n => n.id === log.nodeId)?.data?.label || log.nodeId;
-                  const isSuccess = log.status === 'success' || log.status === 'completed' || log.success === true;
-                  const iconColor = isSuccess ? 'text-green-400' : 'text-red-400';
-                  const messageText = log.error || log.message || (isSuccess ? 'Completed' : 'Failed');
-
-                  return (
-                    <Card key={idx} className="p-3 bg-gray-800/50 rounded-lg border-gray-600 mb-2">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          {isSuccess ? (
-                            <CheckCircle className={`w-5 h-5 ${iconColor}`} />
-                          ) : (
-                            <AlertCircle className={`w-5 h-5 ${iconColor}`} />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-white font-medium text-sm">{nodeLabel}</h3>
-                          <p className={`text-xs mt-1 ${isSuccess ? 'text-green-400' : 'text-red-400'}`}>
-                            {messageText}
-                          </p>
-                          <p className="text-gray-500 text-xs mt-2">{log.timestamp}</p>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })()
-              ))
-            )}
-
-            <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-300 font-medium text-sm">Summary</span>
-              </div>
-              <p className="text-gray-300 text-xs">Status: <span className="font-semibold">{runResults.status}</span></p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 🔴 v2: Test Results Sidebar and Run Results Sidebar removed — execution deprecated */}
       {showPromptBox && (
         <div
           ref={promptBoxRef}

@@ -10,6 +10,7 @@ import workflowRoutes from "./src/routes/workflow.routes.js";
 import executionRoutes from "./src/routes/execution.routes.js";
 import orchestratorRoutes from './src/routes/orchestrator.routes.js';
 import nlpRoutes from './src/routes/nlp.routes.js';
+import planningRoutes from './src/routes/planning.routes.js';
 // import userRoutes from './src/routes/user.routes.js';
 import authRoutes from "./src/routes/auth.routes.js";
 import errorHandler from "./src/middlewares/errorHandler.js";
@@ -59,10 +60,13 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 // Route declarations
+// 🔴 Deprecated in v2 — /run returns 410, other endpoints still active
 app.use('/api/orchestrator', orchestratorRoutes);
 app.use('/api/nlp', nlpRoutes);
+app.use('/api/planning', planningRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/workflows", workflowRoutes);
+// 🔴 Deprecated in v2 — all execution routes return 410 (kept for backward compatibility)
 app.use("/api/executions", executionRoutes);
 // app.use("/api/users", userRoutes);
 

@@ -96,58 +96,26 @@ export const workflowAPI = {
   },
 };
 
-// Execution APIs
-export const executionAPI = {
-  // Create a new execution log
-  create: async (executionData) => {
-    const response = await api.post('/executions', executionData);
-    return response.data;
-  },
-
-  // Get all executions (with optional filters)
-  getAll: async (params = {}) => {
-    const response = await api.get('/executions', { params });
-    return response.data;
-  },
-
-  // Get executions by workflow ID
-  getByWorkflow: async (workflowId, params = {}) => {
-    const response = await api.get(`/executions/workflow/${workflowId}`, { params });
-    return response.data;
-  },
-
-  // Get execution by runId
-  getByRunId: async (runId) => {
-    const response = await api.get(`/executions/${runId}`);
-    return response.data;
-  },
-
-  // Update execution
-  update: async (runId, executionData) => {
-    const response = await api.put(`/executions/${runId}`, executionData);
-    return response.data;
-  },
-
-  // Delete execution by runId
-  delete: async (runId) => {
-    const response = await api.delete(`/executions/${runId}`);
-    return response.data;
-  },
-};
+// 🔴 Deprecated in v2 — Execution API disabled
+// export const executionAPI = {
+//   create: async (executionData) => { ... },
+//   getAll: async (params = {}) => { ... },
+//   getByWorkflow: async (workflowId, params = {}) => { ... },
+//   getByRunId: async (runId) => { ... },
+//   update: async (runId, executionData) => { ... },
+//   delete: async (runId) => { ... },
+// };
 
 // NLP APIs (AI workflow generation)
 export const nlpAPI = {
-  // Generate workflow from text prompt using Gemini
-  generateWorkflow: async (prompt, model = 'gemini-2.5-flash') => {
-    const response = await api.post('/nlp/generate', { prompt, model });
+  // Generate workflow from text prompt using Groq
+  generateWorkflow: async (prompt, model = 'openai/gpt-oss-20b', platform = 'n8n') => {
+    const response = await api.post('/nlp/generate', { prompt, model, platform });
     return response.data;
   },
 
-  // Generate workflow and immediately execute it
-  generateAndRun: async (prompt) => {
-    const response = await api.post('/nlp/generate-and-run', { prompt });
-    return response.data;
-  },
+  // 🔴 Deprecated in v2 — Generate + Execute disabled
+  // generateAndRun: async (prompt) => { ... },
 
   // Get example prompts for testing
   getExamples: async () => {
@@ -164,6 +132,27 @@ export const nlpAPI = {
   // Health check for NLP service
   healthCheck: async () => {
     const response = await api.get('/nlp/health');
+    return response.data;
+  },
+};
+
+// Phase-6/7: Planning APIs (Explainability + Recreation)
+export const planningAPI = {
+  // Phase-6: Generate deterministic explanation for a workflow
+  explain: async (nodes, edges, platform = 'n8n') => {
+    const response = await api.post('/planning/explain', { nodes, edges, platform });
+    return response.data;
+  },
+
+  // Phase-7: Generate step-by-step recreation guide
+  recreate: async (nodes, edges, platform = 'n8n') => {
+    const response = await api.post('/planning/recreate', { nodes, edges, platform });
+    return response.data;
+  },
+
+  // Health check for planning service
+  healthCheck: async () => {
+    const response = await api.get('/planning/health');
     return response.data;
   },
 };

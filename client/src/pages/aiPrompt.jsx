@@ -12,7 +12,9 @@ import {
   Sparkles,
   Zap,
   AlertCircle,
-  Clock
+  Clock,
+  Server,
+  Lock
 } from 'lucide-react';
 import { nlpAPI } from '../services/api';
 import { Vortex } from '../components/ui/vortex';
@@ -22,16 +24,26 @@ export default function AISummaryPage() {
   const navigate = useNavigate();
   const [summary, setSummary] = useState('');
   const [workflowType, setWorkflowType] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [retryAfter, setRetryAfter] = useState(0);
 
   // Debounce ref to prevent rapid clicks
   const lastRequestTime = useRef(0);
-  const DEBOUNCE_MS = 2000; // 2 second debounce
+  const DEBOUNCE_MS = 2000;
+
+  const handlePlatformChange = (platformValue) => {
+    // If user changes platform after generating, clear workflow state
+    if (selectedPlatform && selectedPlatform !== platformValue) {
+      setSummary('');
+      setError('');
+    }
+    setSelectedPlatform(platformValue);
+  };
 
   const handleGenerateWorkflow = useCallback(async () => {
-    if (!summary.trim() || !workflowType) return;
+    if (!summary.trim() || !workflowType || !selectedPlatform) return;
 
     // Debounce check
     const now = Date.now();
@@ -46,14 +58,13 @@ export default function AISummaryPage() {
     setRetryAfter(0);
 
     try {
-      console.log('🚀 Starting AI workflow generation with prompt:', summary);
+      console.log(`🚀 Starting AI workflow generation for platform: ${selectedPlatform}`);
 
-      // Call the Gemini API to generate the workflow
-      const response = await nlpAPI.generateWorkflow(summary);
+      // Call the AI API with platform constraint
+      const response = await nlpAPI.generateWorkflow(summary, 'openai/gpt-oss-20b', selectedPlatform);
 
       console.log('✅ AI Response:', response);
 
-      // Handle the ApiResponse format: { success: true, data: { workflow, ... }, message }
       if (response && response.success && response.data && response.data.workflow) {
         const generatedWorkflow = response.data.workflow;
 
@@ -62,37 +73,47 @@ export default function AISummaryPage() {
           toast.warning(response.data.warning);
         }
 
-        console.log('📊 Generated workflow structure:', {
+        console.log('📊 Generated workflow:', {
           nodes: generatedWorkflow.nodes?.length || 0,
           edges: generatedWorkflow.edges?.length || 0,
+          platform: response.data.platform,
           metadata: generatedWorkflow.metadata
         });
 
-        // Navigate to workflow editor and pass the generated workflow
+        // Navigate to workflow editor with platform info
         navigate('/workflow', {
           state: {
             fromAIGeneration: true,
             aiGeneratedWorkflow: generatedWorkflow,
             prompt: summary,
-            workflowType: workflowType
+            workflowType: workflowType,
+            platform: selectedPlatform
           }
         });
 
-        toast.success('Workflow generated successfully! Let\'s customize it.');
+        toast.success(`Workflow generated for ${selectedPlatform.toUpperCase()}! Let's customize it.`);
+      } else if (response && !response.success) {
+        // Handle validation errors (hallucinated nodes, etc.)
+        const errorMsg = response.data?.error || response.message || 'Failed to generate workflow';
+        const invalidNodes = response.data?.invalidNodes;
+        if (invalidNodes && invalidNodes.length > 0) {
+          setError(`${errorMsg}\n\nInvalid nodes: ${invalidNodes.join(', ')}`);
+        } else {
+          setError(errorMsg);
+        }
+        toast.error(errorMsg);
       } else {
         throw new Error(response?.error || 'Failed to generate workflow');
       }
     } catch (err) {
       console.error('❌ Error generating workflow:', err);
 
-      // Handle rate limit errors specially
       if (err.response?.status === 429) {
         const retrySeconds = err.response?.data?.retryAfter || 60;
         setRetryAfter(retrySeconds);
         setError(`Rate limit reached. Please wait ${retrySeconds} seconds before trying again.`);
         toast.error(`Rate limit reached. Please wait ${retrySeconds} seconds.`);
 
-        // Countdown timer
         const countdownInterval = setInterval(() => {
           setRetryAfter(prev => {
             if (prev <= 1) {
@@ -102,6 +123,14 @@ export default function AISummaryPage() {
             return prev - 1;
           });
         }, 1000);
+      } else if (err.response?.status === 400) {
+        const msg = err.response?.data?.message || 'Invalid request. Please check your inputs.';
+        setError(msg);
+        toast.error(msg);
+      } else if (err.response?.status === 503) {
+        const msg = err.response?.data?.message || 'Platform catalog temporarily unavailable. Please try again later.';
+        setError(msg);
+        toast.error(msg);
       } else {
         const errorMessage = err.response?.data?.message || err.message || 'Failed to generate workflow. Please try again.';
         setError(errorMessage);
@@ -110,7 +139,31 @@ export default function AISummaryPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [summary, workflowType, navigate]);
+  }, [summary, workflowType, selectedPlatform, navigate]);
+
+  const platforms = [
+    {
+      value: 'n8n',
+      label: 'n8n',
+      description: 'Open-source workflow automation',
+      enabled: true,
+      icon: <Server className="w-5 h-5" />
+    },
+    {
+      value: 'zapier',
+      label: 'Zapier',
+      description: 'Coming soon',
+      enabled: false,
+      icon: <Zap className="w-5 h-5" />
+    },
+    {
+      value: 'make',
+      label: 'Make',
+      description: 'Coming soon',
+      enabled: false,
+      icon: <Sparkles className="w-5 h-5" />
+    }
+  ];
 
   const workflowTypes = [
     { value: 'social-media', label: 'Social Media Automation' },
@@ -179,7 +232,7 @@ export default function AISummaryPage() {
             Describe Your Workflow
           </h1>
           <p className="text-gray-400 text-lg max-w-xl mx-auto">
-            Tell our AI what you want your workflow to do
+            Select a platform, then tell our AI what you want your workflow to do
           </p>
         </div>
 
@@ -194,7 +247,7 @@ export default function AISummaryPage() {
                   <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-red-300 font-medium text-sm">Generation Error</p>
-                    <p className="text-red-200/80 text-xs mt-1">{error}</p>
+                    <p className="text-red-200/80 text-xs mt-1 whitespace-pre-line">{error}</p>
                     {retryAfter > 0 && (
                       <div className="mt-2 flex items-center gap-2 text-yellow-400 text-xs">
                         <Clock className="w-4 h-4" />
@@ -214,6 +267,47 @@ export default function AISummaryPage() {
                   </div>
                 </div>
               )}
+
+              {/* ── Phase-2: Platform Selection ── */}
+              <div className="mb-6">
+                <label className="text-gray-200 font-semibold mb-3 block text-lg">
+                  Target Platform <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {platforms.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => p.enabled && handlePlatformChange(p.value)}
+                      disabled={!p.enabled}
+                      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedPlatform === p.value
+                        ? 'border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/20'
+                        : p.enabled
+                          ? 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:bg-gray-800/60 cursor-pointer'
+                          : 'border-gray-800 bg-gray-900/30 opacity-50 cursor-not-allowed'
+                        }`}
+                    >
+                      {!p.enabled && (
+                        <div className="absolute top-2 right-2">
+                          <Lock className="w-3 h-3 text-gray-600" />
+                        </div>
+                      )}
+                      <div className={`${selectedPlatform === p.value ? 'text-cyan-400' : 'text-gray-400'}`}>
+                        {p.icon}
+                      </div>
+                      <span className={`font-semibold text-sm ${selectedPlatform === p.value ? 'text-white' : 'text-gray-300'}`}>
+                        {p.label}
+                      </span>
+                      <span className="text-xs text-gray-500">{p.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {!selectedPlatform && (
+                  <p className="text-yellow-500/70 text-xs mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Please select a platform before generating
+                  </p>
+                )}
+              </div>
 
               {/* Workflow Type Selection */}
               <div className="mb-6">
@@ -249,10 +343,14 @@ export default function AISummaryPage() {
                 </label>
                 <Textarea
                   id="summary"
-                  placeholder="Describe your workflow in detail. For example: 'I want to automatically post my blog content to LinkedIn every Monday at 9 AM, and also send a summary email to my team with the post link and engagement metrics.'"
+                  placeholder={selectedPlatform
+                    ? `Describe your ${selectedPlatform.toUpperCase()} workflow. For example: 'When a new row is added in Google Sheets, send a Slack notification to my team with the row data.'`
+                    : "Select a platform first, then describe your workflow here..."
+                  }
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  className="bg-gray-800/60 border-gray-600/50 text-white placeholder-gray-500 focus:border-cyan-500 focus:ring-cyan-500/20 text-base resize-none rounded-xl min-h-[200px]"
+                  disabled={!selectedPlatform}
+                  className="bg-gray-800/60 border-gray-600/50 text-white placeholder-gray-500 focus:border-cyan-500 focus:ring-cyan-500/20 text-base resize-none rounded-xl min-h-[200px] disabled:opacity-40 disabled:cursor-not-allowed"
                   rows={8}
                 />
               </div>
@@ -261,7 +359,7 @@ export default function AISummaryPage() {
               <div className="text-center">
                 <Button
                   onClick={handleGenerateWorkflow}
-                  disabled={!summary.trim() || !workflowType || isGenerating || retryAfter > 0}
+                  disabled={!summary.trim() || !workflowType || !selectedPlatform || isGenerating || retryAfter > 0}
                   className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-10 py-6 text-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-cyan-500/30 transition-all duration-300 hover:shadow-cyan-500/50 hover:scale-[1.02]"
                 >
                   {isGenerating ? (
@@ -271,7 +369,10 @@ export default function AISummaryPage() {
                     </>
                   ) : (
                     <>
-                      Generate Workflow
+                      {selectedPlatform
+                        ? `Generate for ${selectedPlatform.toUpperCase()}`
+                        : 'Generate Workflow'
+                      }
                       <ArrowRight className="w-5 h-5 ml-3" />
                     </>
                   )}
@@ -281,7 +382,7 @@ export default function AISummaryPage() {
                   <div className="mt-4 text-gray-400 text-sm">
                     <div className="flex items-center justify-center gap-2">
                       <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-                      <span>Analyzing your requirements and building the perfect workflow...</span>
+                      <span>Analyzing your requirements using {selectedPlatform.toUpperCase()} node catalog...</span>
                     </div>
                   </div>
                 )}
@@ -304,6 +405,20 @@ export default function AISummaryPage() {
                 ))}
               </ul>
             </div>
+
+            {/* Platform Info */}
+            {selectedPlatform && (
+              <div className="mt-8 p-4 bg-cyan-900/20 border border-cyan-500/20 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Server className="w-4 h-4 text-cyan-400" />
+                  <span className="text-cyan-300 font-semibold text-sm">Platform: {selectedPlatform.toUpperCase()}</span>
+                </div>
+                <p className="text-gray-400 text-xs">
+                  AI will only use nodes available in the {selectedPlatform} platform catalog.
+                  This ensures your workflow is realistic and implementable.
+                </p>
+              </div>
+            )}
 
             {/* Decorative Star */}
             <div className="mt-12 flex justify-end">

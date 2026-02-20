@@ -1,10 +1,10 @@
 // server/src/controllers/nlp.controller.js
+// Phase-2: Platform-aware workflow generation
 
 import { generateWorkflowFromText, getExamplePrompts } from '../services/nlp/textToWorkflow.service.js';
-import { getAvailableNodeTypes } from '../services/orchestrator/nodeRegistry.js';
-import { runWorkflow } from '../services/orchestrator.service.js';
-import  ApiResponse  from '../utils/ApiResponse.js';
-import  ApiError  from '../utils/ApiError.js';
+import { isPlatformSupported, getSupportedPlatforms, getNodeLabels } from '../domains/platform/platform.service.js';
+import ApiResponse from '../utils/ApiResponse.js';
+import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 /**
@@ -12,62 +12,45 @@ import asyncHandler from '../utils/asyncHandler.js';
  * POST /api/nlp/generate
  */
 const generateWorkflow = asyncHandler(async (req, res) => {
-  const { prompt, model } = req.body;
-  
-  // Validate input
+  let { prompt, model, platform } = req.body;
+
+  // Validate prompt
   if (!prompt) {
     throw new ApiError(400, 'Prompt is required');
   }
-  
-  // Generate workflow using Gemini
-  const result = await generateWorkflowFromText(prompt, { model });
-  
+
+  // ── Phase-2: Platform validation ──
+  // Reject if platform missing
+  if (!platform) {
+    throw new ApiError(400, 'Platform is required. Supported platforms: ' + getSupportedPlatforms().join(', '));
+  }
+
+  // Normalize platform (trim + lowercase)
+  platform = platform.trim().toLowerCase();
+
+  // Reject if platform unsupported
+  if (!isPlatformSupported(platform)) {
+    console.warn(`⚠️ [NLP] Unsupported platform requested: "${platform}"`);
+    throw new ApiError(400, `Unsupported platform: "${platform}". Supported platforms: ${getSupportedPlatforms().join(', ')}`);
+  }
+
+  // Verify catalog is available (graceful failure)
+  const nodeLabels = getNodeLabels(platform);
+  if (nodeLabels.length === 0) {
+    console.error(`❌ [NLP] Platform catalog unavailable for "${platform}"`);
+    throw new ApiError(503, `Platform catalog for "${platform}" is temporarily unavailable. Please try again later.`);
+  }
+
+  // Generate workflow using Groq with platform constraint
+  const result = await generateWorkflowFromText(prompt, { model, platform });
+
   if (result.success) {
     res.status(200).json(
-      new ApiResponse(200, result, 'Workflow generated successfully using Gemini AI')
+      new ApiResponse(200, result, `Workflow generated successfully for platform: ${platform}`)
     );
   } else {
     throw new ApiError(500, result.error, result);
   }
-});
-
-/**
- * Generate and immediately execute workflow
- * POST /api/nlp/generate-and-run
- */
-const generateAndRunWorkflow = asyncHandler(async (req, res) => {
-  const { prompt, model } = req.body;
-  
-  if (!prompt) {
-    throw new ApiError(400, 'Prompt is required');
-  }
-  
-  // Step 1: Generate workflow with Gemini
-  console.log('Step 1: Generating workflow with Gemini...');
-  const generationResult = await generateWorkflowFromText(prompt, { model });
-  
-  if (!generationResult.success) {
-    throw new ApiError(500, 'Failed to generate workflow: ' + generationResult.error);
-  }
-  
-  // Step 2: Execute workflow
-  console.log('Step 2: Executing generated workflow...');
-  const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
-  const executionResult = await runWorkflow(generationResult.workflow, {
-    runId,
-    userId: req.user?.id || 'guest',
-    generatedFrom: 'nlp-gemini',
-    originalPrompt: prompt
-  });
-  
-  // Combine results
-  res.status(200).json(
-    new ApiResponse(200, {
-      generation: generationResult,
-      execution: executionResult
-    }, 'Workflow generated with Gemini and executed successfully')
-  );
 });
 
 /**
@@ -76,12 +59,12 @@ const generateAndRunWorkflow = asyncHandler(async (req, res) => {
  */
 const getExamples = asyncHandler(async (req, res) => {
   const examples = getExamplePrompts();
-  
+
   res.status(200).json(
-    new ApiResponse(200, { 
-      examples, 
+    new ApiResponse(200, {
+      examples,
       count: examples.length,
-      aiProvider: 'gemini'
+      aiProvider: 'groq'
     }, 'Example prompts retrieved')
   );
 });
@@ -91,29 +74,34 @@ const getExamples = asyncHandler(async (req, res) => {
  * GET /api/nlp/health
  */
 const healthCheck = asyncHandler(async (req, res) => {
-  const hasApiKey = !!process.env.GEMINI_API_KEY;
-  
+  const hasApiKey = !!process.env.GROQ_API_KEY;
+
   res.status(200).json(
     new ApiResponse(200, {
       status: 'healthy',
       service: 'nlp',
-      aiProvider: 'gemini',
-      geminiConfigured: hasApiKey,
+      aiProvider: 'groq',
+      groqConfigured: hasApiKey,
+      supportedPlatforms: getSupportedPlatforms(),
       freeForever: true,
-      timestamp: new Date().toISOString(),
-      availableNodeTypes: getAvailableNodeTypes()
+      timestamp: new Date().toISOString()
     }, 'NLP service is healthy')
   );
 });
 
 const getAvailableNodes = asyncHandler(async (req, res) => {
-  const types = getAvailableNodeTypes();
-  res.status(200).json(new ApiResponse(200, { types, count: types.length }, 'Available node types'));
+  const platform = req.query.platform?.trim().toLowerCase() || 'n8n';
+
+  if (!isPlatformSupported(platform)) {
+    throw new ApiError(400, `Unsupported platform: "${platform}"`);
+  }
+
+  const labels = getNodeLabels(platform);
+  res.status(200).json(new ApiResponse(200, { labels, count: labels.length, platform }, 'Available node labels'));
 });
 
 export {
   generateWorkflow,
-  generateAndRunWorkflow,
   getExamples,
   healthCheck,
   getAvailableNodes

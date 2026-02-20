@@ -34,7 +34,9 @@ import {
   ThumbsUp,
   Info,
   Activity,
-  ArrowLeft
+  ArrowLeft,
+  Clock,
+  FileText
 } from 'lucide-react';
 import { workflowAPI } from '../services/api';
 import { nodeLabelToHandler } from '../services/nodeTypeMap';
@@ -205,12 +207,15 @@ export default function CompleteWorkflowPage() {
       try {
         setLoading(true);
         const workflowDataFromState = location.state?.workflowData;
+        const workflowFromLogs = location.state?.workflow;
         const workflowId = location.state?.workflowId;
 
         let workflow = null;
 
         if (workflowDataFromState) {
           workflow = workflowDataFromState;
+        } else if (workflowFromLogs) {
+          workflow = workflowFromLogs;
         } else if (workflowId) {
           const response = await workflowAPI.getById(workflowId);
           if (response && response.success && response.data) {
@@ -272,8 +277,9 @@ export default function CompleteWorkflowPage() {
   const workflowStats = {
     totalNodes: workflowData.nodes.length,
     totalConnections: workflowData.edges.length,
-    estimatedRuns: '24/7',
-    successRate: '98.5%'
+    // 🔴 v2: Removed fake execution stats (estimatedRuns, successRate)
+    createdAt: new Date().toLocaleDateString(),
+    nodeTypes: new Set(workflowData.nodes.map(n => n.data?.handlerType || n.type || 'custom')).size
   };
 
   return (
@@ -301,9 +307,18 @@ export default function CompleteWorkflowPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/30">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-green-400 text-sm font-medium">Live</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+                  {location.state?.mode === 'view' ? (
+                    <>
+                      <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="text-cyan-400 text-sm font-medium">View Mode</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="text-cyan-400 text-sm font-medium">Saved</span>
+                    </>
+                  )}
                 </div>
                 <Button onClick={goToDashboard} className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20">
                   <LayoutDashboard className="w-4 h-4 mr-2" />
@@ -329,11 +344,11 @@ export default function CompleteWorkflowPage() {
                   <BentoTile className="p-6 md:p-8 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/30 max-w-2xl w-full">
                     <div className="flex flex-col items-center text-center gap-4">
                       <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                        <CheckCircle className="w-10 h-10 text-white" />
+                        {location.state?.mode === 'view' ? <Brain className="w-10 h-10 text-white" /> : <CheckCircle className="w-10 h-10 text-white" />}
                       </div>
                       <div>
                         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                          Workflow is Live!
+                          {location.state?.mode === 'view' ? 'Workflow Overview' : 'Workflow Saved Successfully!'}
                         </h1>
                         <p className="text-xl text-cyan-300 font-semibold">
                           {workflowData.name}
@@ -425,11 +440,11 @@ export default function CompleteWorkflowPage() {
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <div className="p-1.5 bg-green-500/20 rounded-lg">
-                              <Activity className="w-4 h-4 text-green-400" />
+                              <Clock className="w-4 h-4 text-green-400" />
                             </div>
-                            <span className="text-xs text-gray-400">Uptime</span>
+                            <span className="text-xs text-gray-400">Created</span>
                           </div>
-                          <div className="text-2xl font-bold text-white">{workflowStats.estimatedRuns}</div>
+                          <div className="text-lg font-bold text-white">{workflowStats.createdAt}</div>
                         </div>
                       </BentoTile>
 
@@ -439,9 +454,9 @@ export default function CompleteWorkflowPage() {
                             <div className="p-1.5 bg-purple-500/20 rounded-lg">
                               <BarChart3 className="w-4 h-4 text-purple-400" />
                             </div>
-                            <span className="text-xs text-gray-400">Success</span>
+                            <span className="text-xs text-gray-400">Node Types</span>
                           </div>
-                          <div className="text-2xl font-bold text-white">{workflowStats.successRate}</div>
+                          <div className="text-2xl font-bold text-white">{workflowStats.nodeTypes}</div>
                         </div>
                       </BentoTile>
                     </div>

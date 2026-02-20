@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 import NodeConfigPanel from '../components/NodeConfigPanel';
 import ExplainabilityPanel from '../components/ExplainabilityPanel';
+import RecreationPanel from '../components/RecreationPanel';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
@@ -29,7 +30,8 @@ import {
   ArrowLeft,
   Edit,
   Text,
-  BookOpen
+  BookOpen,
+  Hammer
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
@@ -71,6 +73,11 @@ export default function WorkflowEditorPage() {
   const [explainData, setExplainData] = useState(null);
   const [explainLoading, setExplainLoading] = useState(false);
   const [lastExplainedHash, setLastExplainedHash] = useState('');
+
+  // Phase-7: Recreation state
+  const [showRecreatePanel, setShowRecreatePanel] = useState(false);
+  const [recreateData, setRecreateData] = useState(null);
+  const [recreateLoading, setRecreateLoading] = useState(false);
   // 🔴 Deprecated in v2 — execution state removed
   // isRunning, runResults, showRunResults removed
 
@@ -569,6 +576,7 @@ export default function WorkflowEditorPage() {
     }
 
     setShowExplainPanel(true);
+    setShowRecreatePanel(false); // Close recreate panel when explain opens
     setExplainLoading(true);
 
     try {
@@ -625,6 +633,38 @@ export default function WorkflowEditorPage() {
       return () => clearTimeout(timer);
     }
   }, [nodes.length, edges.length, showExplainPanel]);
+
+  // Phase-7: Recreation guide handler (user-controlled, no auto-trigger)
+  const handleRecreateWorkflow = async () => {
+    if (nodes.length === 0) {
+      toast.error('Add at least one node before generating a recreation guide.');
+      return;
+    }
+
+    setShowRecreatePanel(true);
+    setShowExplainPanel(false); // Close explain panel when recreate opens
+    setRecreateLoading(true);
+
+    try {
+      const apiNodes = nodes.map(n => ({
+        id: n.id,
+        label: n.data?.label || n.label || n.id,
+        data: { description: n.data?.description || '' }
+      }));
+      const apiEdges = edges.map(e => ({ source: e.source, target: e.target }));
+
+      const response = await planningAPI.recreate(apiNodes, apiEdges, currentPlatform);
+      setRecreateData(response.data);
+    } catch (error) {
+      console.error('Recreate workflow error:', error);
+      setRecreateData({
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to generate recreation guide'
+      });
+    } finally {
+      setRecreateLoading(false);
+    }
+  };
 
   const applyWorkflow = async () => {
     if (nodes.length === 0) {
@@ -797,6 +837,16 @@ export default function WorkflowEditorPage() {
                 <BookOpen className="w-4 h-4 mr-2" />
                 Explain
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                onClick={handleRecreateWorkflow}
+                disabled={nodes.length === 0}
+              >
+                <Hammer className="w-4 h-4 mr-2" />
+                Recreate
+              </Button>
 
               <Button
                 size="sm"
@@ -844,6 +894,13 @@ export default function WorkflowEditorPage() {
               data={explainData}
               loading={explainLoading}
               onClose={() => setShowExplainPanel(false)}
+            />
+          )}
+          {showRecreatePanel && (
+            <RecreationPanel
+              data={recreateData}
+              loading={recreateLoading}
+              onClose={() => setShowRecreatePanel(false)}
             />
           )}
           {selectedNodeId && (

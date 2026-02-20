@@ -136,11 +136,17 @@ export const nlpAPI = {
   },
 };
 
-// Phase-6: Planning APIs (Explainability Layer)
+// Phase-6/7: Planning APIs (Explainability + Recreation)
 export const planningAPI = {
-  // Generate deterministic explanation for a workflow
+  // Phase-6: Generate deterministic explanation for a workflow
   explain: async (nodes, edges, platform = 'n8n') => {
     const response = await api.post('/planning/explain', { nodes, edges, platform });
+    return response.data;
+  },
+
+  // Phase-7: Generate step-by-step recreation guide
+  recreate: async (nodes, edges, platform = 'n8n') => {
+    const response = await api.post('/planning/recreate', { nodes, edges, platform });
     return response.data;
   },
 

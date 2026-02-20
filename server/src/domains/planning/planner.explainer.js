@@ -8,7 +8,7 @@ import { loadCatalog } from "../platform/platform.service.js";
 // ── Self-contained Topological Sort (Kahn's Algorithm) ──
 // Planning-domain-only — no orchestrator dependency
 
-function topologicalSort(nodes, edges) {
+export function topologicalSort(nodes, edges) {
   const graph = new Map(); // nodeId -> [targetIds]
   const inDegree = new Map(); // nodeId -> count
 
@@ -49,7 +49,7 @@ function topologicalSort(nodes, edges) {
 
 // ── Graph Validation ──
 
-function validateGraph(nodes, edges) {
+export function validateGraph(nodes, edges) {
   const errors = [];
 
   if (!Array.isArray(nodes) || nodes.length === 0) {
@@ -88,7 +88,7 @@ function validateGraph(nodes, edges) {
 
 // ── Role Classification via Catalog ──
 
-function classifyNodeRole(nodeLabel, catalogLookup) {
+export function classifyNodeRole(nodeLabel, catalogLookup) {
   const catalogEntry = catalogLookup.get(nodeLabel);
   if (catalogEntry) {
     return catalogEntry.type; // 'trigger' or 'action' from catalog metadata

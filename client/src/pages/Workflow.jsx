@@ -7,6 +7,7 @@ import { ReactFlowProvider } from 'reactflow';
 import Sidebar from '../components/Sidebar';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 import NodeConfigPanel from '../components/NodeConfigPanel';
+import ExplainabilityPanel from '../components/ExplainabilityPanel';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
@@ -27,11 +28,12 @@ import {
   X,
   ArrowLeft,
   Edit,
-  Text
+  Text,
+  BookOpen
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
-import { workflowAPI, nlpAPI } from '../services/api';
+import { workflowAPI, nlpAPI, planningAPI } from '../services/api';
 import { mapLabelToHandler, mapHandlerToDisplayLabel, nodeLabelToHandler } from '../services/nodeTypeMap';
 import { getNodeByHandler, getIconForHandler, getDisplayLabel, isValidHandler } from '../services/nodeRegistry.jsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -63,6 +65,12 @@ export default function WorkflowEditorPage() {
   const [currentPlatform, setCurrentPlatform] = useState('legacy');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
+
+  // Phase-6: Explainability state
+  const [showExplainPanel, setShowExplainPanel] = useState(false);
+  const [explainData, setExplainData] = useState(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [lastExplainedHash, setLastExplainedHash] = useState('');
   // 🔴 Deprecated in v2 — execution state removed
   // isRunning, runResults, showRunResults removed
 
@@ -553,6 +561,71 @@ export default function WorkflowEditorPage() {
     );
   };
 
+  // Phase-6: Explain workflow — deterministic, no AI
+  const handleExplainWorkflow = async () => {
+    if (nodes.length === 0) {
+      toast.error('Please add at least one node to explain.');
+      return;
+    }
+
+    setShowExplainPanel(true);
+    setExplainLoading(true);
+
+    try {
+      // Prepare nodes with labels for the explain API
+      const apiNodes = nodes.map(n => ({
+        id: n.id,
+        label: n.data?.label || n.label || n.id,
+        data: { description: n.data?.description || '' }
+      }));
+
+      const apiEdges = edges.map(e => ({
+        source: e.source,
+        target: e.target
+      }));
+
+      const response = await planningAPI.explain(apiNodes, apiEdges, currentPlatform);
+
+      if (response && response.success && response.data) {
+        setExplainData(response.data);
+        // Store hash to detect structural changes
+        const hash = JSON.stringify(apiNodes.map(n => n.id + n.label).sort()) + JSON.stringify(apiEdges.map(e => e.source + e.target).sort());
+        setLastExplainedHash(hash);
+      } else {
+        setExplainData({ success: false, error: response?.message || 'Failed to generate explanation' });
+      }
+    } catch (error) {
+      console.error('Explain workflow error:', error);
+      setExplainData({
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to generate explanation'
+      });
+    } finally {
+      setExplainLoading(false);
+    }
+  };
+
+  // Phase-6: Auto-retrigger explanation on structural graph changes
+  // Only on node add/delete, edge add/remove — NOT on position drag
+  useEffect(() => {
+    if (!showExplainPanel || nodes.length === 0) return;
+
+    const apiNodes = nodes.map(n => ({
+      id: n.id,
+      label: n.data?.label || n.label || n.id
+    }));
+    const apiEdges = edges.map(e => ({ source: e.source, target: e.target }));
+    const currentHash = JSON.stringify(apiNodes.map(n => n.id + n.label).sort()) + JSON.stringify(apiEdges.map(e => e.source + e.target).sort());
+
+    if (currentHash !== lastExplainedHash && lastExplainedHash !== '') {
+      // Debounce re-trigger
+      const timer = setTimeout(() => {
+        handleExplainWorkflow();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [nodes.length, edges.length, showExplainPanel]);
+
   const applyWorkflow = async () => {
     if (nodes.length === 0) {
       toast.error('Please add at least one node to the workflow.');
@@ -714,6 +787,16 @@ export default function WorkflowEditorPage() {
                 <Brain className="w-4 h-4 mr-2" />
                 Preview Logic
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                onClick={handleExplainWorkflow}
+                disabled={nodes.length === 0}
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                Explain
+              </Button>
 
               <Button
                 size="sm"
@@ -748,7 +831,6 @@ export default function WorkflowEditorPage() {
         <ReactFlowProvider>
           <Sidebar addNode={addNode} />
           <div className="flex-1 relative">
-
             <WorkflowCanvas
               nodes={nodes}
               setNodes={setNodes}
@@ -757,6 +839,13 @@ export default function WorkflowEditorPage() {
               onNodeClick={selectNode}
             />
           </div>
+          {showExplainPanel && (
+            <ExplainabilityPanel
+              data={explainData}
+              loading={explainLoading}
+              onClose={() => setShowExplainPanel(false)}
+            />
+          )}
           {selectedNodeId && (
             <NodeConfigPanel
               node={nodes.find((n) => n.id === selectedNodeId) || null}

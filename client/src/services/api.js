@@ -136,6 +136,21 @@ export const nlpAPI = {
   },
 };
 
+// Phase-6: Planning APIs (Explainability Layer)
+export const planningAPI = {
+  // Generate deterministic explanation for a workflow
+  explain: async (nodes, edges, platform = 'n8n') => {
+    const response = await api.post('/planning/explain', { nodes, edges, platform });
+    return response.data;
+  },
+
+  // Health check for planning service
+  healthCheck: async () => {
+    const response = await api.get('/planning/health');
+    return response.data;
+  },
+};
+
 // Auth APIs
 export const authAPI = {
   // Register user

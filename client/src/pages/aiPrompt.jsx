@@ -14,10 +14,10 @@ import {
   AlertCircle,
   Clock,
   Server,
-  Lock
+  Lock,
+  Lightbulb
 } from 'lucide-react';
 import { nlpAPI } from '../services/api';
-import { Vortex } from '../components/ui/vortex';
 import NoBrainLogo from '../components/NoBrainLogo';
 
 export default function AISummaryPage() {
@@ -190,20 +190,12 @@ export default function AISummaryPage() {
   ];
 
   return (
-    <Vortex
-      backgroundColor="#000000"
-      rangeY={800}
-      particleCount={500}
-      baseHue={170}
-      rangeHue={50}
-      baseSpeed={0.0}
-      rangeSpeed={0.4}
-      baseRadius={1}
-      rangeRadius={2}
-      containerClassName="h-screen w-full overflow-hidden fixed inset-0 bg-black"
-    >
+    <div className="min-h-screen flex flex-col bg-[#0B1020] text-foreground overflow-x-hidden relative">
+      {/* Grid overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-[linear-gradient(rgba(34,211,238,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.03)_1px,transparent_1px)] bg-[size:40px_40px] z-0" />
+
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
+      <header className="relative z-30 pt-4 flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -211,7 +203,7 @@ export default function AISummaryPage() {
             </div>
 
             <Button
-              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20"
+              className="bg-gradient-to-r from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white shadow-lg shadow-[rgba(34,211,238,0.2)]"
               onClick={() => navigate('/dashboard')}
             >
               <LayoutDashboard className="w-4 h-4 mr-2" />
@@ -222,25 +214,30 @@ export default function AISummaryPage() {
       </header>
 
       {/* Main Content */}
-      <div className="h-screen flex flex-col items-center justify-start px-4 sm:px-6 lg:px-8 pt-20 pb-6 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 lg:px-8 pt-8 pb-12 overflow-y-auto overflow-x-hidden relative z-10">
         {/* Hero Section */}
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-cyan-500/30">
-            <Briefcase className="w-8 h-8 text-white" />
+        <div className="text-center mb-10 relative z-10">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[rgba(34,211,238,0.15)] to-[rgba(167,139,250,0.15)] border border-[rgba(255,255,255,0.1)] flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(34,211,238,0.2)] relative">
+            <div className="absolute inset-1.5 rounded-2xl border border-dashed border-white/10" />
+            <Sparkles className="w-7 h-7 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
             Describe Your Workflow
           </h1>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">
+          <p className="text-[#B6C2D9] text-lg max-w-xl mx-auto">
             Select a platform, then tell our AI what you want your workflow to do
           </p>
         </div>
 
         {/* Main Content Grid */}
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10">
           {/* Left Panel - Form */}
           <div className="lg:col-span-2">
-            <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 shadow-2xl">
+            <div className="bg-[#11172A]/60 backdrop-blur-xl border border-[rgba(255,255,255,0.06)] rounded-3xl p-8 lg:p-10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+              {/* Radial glow accent */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-[radial-gradient(circle,rgba(34,211,238,0.05)_0%,transparent_70%)] pointer-events-none" />
+              {/* Animated gradient bottom border */}
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-violet-500 to-cyan-500 bg-[length:200%_auto] animate-gradient opacity-50 group-hover:opacity-100 transition-opacity" />
               {/* Error Alert */}
               {error && (
                 <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-xl flex items-start gap-3">
@@ -279,11 +276,11 @@ export default function AISummaryPage() {
                       key={p.value}
                       onClick={() => p.enabled && handlePlatformChange(p.value)}
                       disabled={!p.enabled}
-                      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedPlatform === p.value
-                        ? 'border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/20'
+                      className={`relative flex flex-col items-center gap-2 p-5 rounded-2xl border transition-all duration-300 ${selectedPlatform === p.value
+                        ? 'border-cyan-500/50 bg-[#11172A]/90 shadow-[0_0_20px_rgba(34,211,238,0.15)] -translate-y-1'
                         : p.enabled
-                          ? 'border-gray-700 bg-gray-800/40 hover:border-gray-500 hover:bg-gray-800/60 cursor-pointer'
-                          : 'border-gray-800 bg-gray-900/30 opacity-50 cursor-not-allowed'
+                          ? 'border-[rgba(255,255,255,0.06)] bg-[#11172A]/40 hover:border-white/15 hover:bg-[#11172A]/60 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer'
+                          : 'border-[rgba(255,255,255,0.03)] bg-[#0B1020]/30 opacity-40 cursor-not-allowed'
                         }`}
                     >
                       {!p.enabled && (
@@ -318,18 +315,18 @@ export default function AISummaryPage() {
                   id="workflow-type"
                   value={workflowType}
                   onChange={(e) => setWorkflowType(e.target.value)}
-                  className="w-full bg-gray-800/60 border border-gray-600/50 text-gray-300 rounded-xl px-4 py-4 text-base focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all cursor-pointer appearance-none"
+                  className="w-full bg-[#0E1425]/80 border border-[rgba(255,255,255,0.06)] text-[#F3F6FF] rounded-xl px-4 py-4 text-base focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all cursor-pointer appearance-none backdrop-blur-md"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.75rem center',
+                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%237E8BA3' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                    backgroundPosition: 'right 1rem center',
                     backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
+                    backgroundSize: '1.2em 1.2em',
+                    paddingRight: '3rem'
                   }}
                 >
-                  <option value="" className='bg-gray-900'>Select a workflow type</option>
+                  <option value="" className='bg-[#0B1020]'>Select a workflow type</option>
                   {workflowTypes.map((type) => (
-                    <option className='bg-gray-900' key={type.value} value={type.value}>
+                    <option className='bg-[#0B1020]' key={type.value} value={type.value}>
                       {type.label}
                     </option>
                   ))}
@@ -350,7 +347,7 @@ export default function AISummaryPage() {
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
                   disabled={!selectedPlatform}
-                  className="bg-gray-800/60 border-gray-600/50 text-white placeholder-gray-500 focus:border-cyan-500 focus:ring-cyan-500/20 text-base resize-none rounded-xl min-h-[200px] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="bg-[#0E1425]/80 border-[rgba(255,255,255,0.06)] text-white placeholder-[#7E8BA3] focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 text-base resize-none rounded-xl min-h-[200px] disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-md"
                   rows={8}
                 />
               </div>
@@ -360,7 +357,7 @@ export default function AISummaryPage() {
                 <Button
                   onClick={handleGenerateWorkflow}
                   disabled={!summary.trim() || !workflowType || !selectedPlatform || isGenerating || retryAfter > 0}
-                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-10 py-6 text-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-cyan-500/30 transition-all duration-300 hover:shadow-cyan-500/50 hover:scale-[1.02]"
+                  className="bg-gradient-to-r from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white px-10 py-6 text-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed rounded-xl shadow-[0_0_24px_rgba(34,211,238,0.2)] transition-all duration-300 hover:shadow-[0_0_30px_rgba(34,211,238,0.35)] hover:scale-[1.02]"
                 >
                   {isGenerating ? (
                     <>
@@ -391,15 +388,20 @@ export default function AISummaryPage() {
           </div>
 
           {/* Right Panel - Tips */}
-          <div className="lg:col-span-1">
-            <div className="bg-transparent">
-              <h3 className="text-white font-semibold text-lg mb-6">
-                How to get the best results
-              </h3>
+          <div className="lg:col-span-1 relative z-10">
+            <div className="bg-[#11172A]/40 backdrop-blur-xl border border-[rgba(255,255,255,0.06)] rounded-3xl p-6 lg:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/10 hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)] transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 shrink-0">
+                  <Lightbulb className="w-5 h-5 text-cyan-400" />
+                </div>
+                <h3 className="text-white font-semibold text-lg" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  Best Practices
+                </h3>
+              </div>
               <ul className="space-y-4">
                 {tips.map((tip, index) => (
-                  <li key={index} className="flex items-start gap-3 text-gray-400 text-sm">
-                    <div className="w-2 h-2 bg-cyan-500 rounded-full mt-2 flex-shrink-0 shadow-sm shadow-cyan-500/50" />
+                  <li key={index} className="flex items-start gap-3 text-[#B6C2D9] text-sm hover:text-white transition-colors">
+                    <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 flex-shrink-0" />
                     <span className="leading-relaxed">{tip}</span>
                   </li>
                 ))}
@@ -427,6 +429,6 @@ export default function AISummaryPage() {
           </div>
         </div>
       </div>
-    </Vortex>
+    </div>
   );
 }

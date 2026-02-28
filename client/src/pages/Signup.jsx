@@ -1,285 +1,11 @@
-
-
-// import { Link, useNavigate } from "react-router-dom";
-// import { Lock, UserPlus, Brain, Eye, EyeOff, Mail, User } from "lucide-react";
-// import { useState } from "react";
-// import { Label } from "../components/ui/label";
-// import { Input } from "../components/ui/Input";
-// // 1. Import BackgroundBeams component
-// import { BackgroundBeams } from "../components/ui/background-beams"; 
-
-// export default function Signup() {
-//   const navigate = useNavigate();
-//   const [showPassword, setShowPassword] = useState(false);
-//   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-//   const [formData, setFormData] = useState({
-//     firstName: "",
-//     lastName: "",
-//     email: "",
-//     password: "",
-//     confirmPassword: "",
-//     agreeToTerms: false
-//   });
-
-//   const handleChange = (e) => {
-//     const { name, value, type, checked } = e.target;
-//     setFormData({
-//       ...formData,
-//       [name]: type === "checkbox" ? checked : value
-//     });
-//   };
-
-//   const handleSubmit = (e) => {
-//     e.preventDefault();
-//     // Add your signup logic here
-//     console.log("Signup data:", formData);
-//     navigate("/dashboard");
-//   };
-
-//   return (
-//     // 2. Add 'relative' to the container for BackgroundBeams positioning
-//     <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-      
-//       {/* 3. Render BackgroundBeams with absolute positioning */}
-//       <BackgroundBeams /> 
-      
-//       {/* REMOVED: Animated Background Elements, Floating Particles, and Glowing Orbs */}
-      
-//       <div className="max-w-md w-full mx-4 relative z-10">
-//         {/* Header with Logo */}
-//         <div className="text-center mb-8">
-//           <div className="flex items-center justify-center gap-3 mb-4">
-//             <div className="relative ">
-//               <div className="w-12 h-12  bg-gradient-to-br from-green-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/25">
-//                 <Brain className="w-6 h-6 text-white" />
-//               </div>
-//               <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-blue-600 rounded-xl blur opacity-30 animate-pulse"></div>
-//             </div>
-//             <h1 className="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
-//               NoBrain
-//             </h1>
-//           </div>
-          
-//         </div>
-
-//         {/* Signup Card */}
-//         <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
-//           {/* Card Header */}
-//           <div className="relative p-8 border-b bg-black border-gray-800">
-//             <div className="flex items-center gap-3 mb-2">
-//               <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-//                 <UserPlus className="w-5 h-5 text-green-400" />
-//               </div>
-//               <h2 className="text-2xl font-bold text-white">Create Account</h2>
-//             </div>
-//             <p className="text-gray-400">Start your journey with us</p>
-            
-//             {/* Animated underline */}
-//             <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-shimmer"></div>
-//           </div>
-
-//           {/* Form */}
-//           <form className="p-8 bg-black" onSubmit={handleSubmit}>
-//             {/* Name Fields */}
-//             <div className="grid grid-cols-2 gap-4 mb-6">
-//               <div>
-//                 <Label className="block text-gray-300 mb-3 font-medium text-sm uppercase tracking-wide">
-//                   First Name
-//                 </Label>
-//                 <div className="relative">
-//                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-//                     <User className="h-5 w-5 text-gray-500" />
-//                   </div>
-//                   <Input
-//                     type="text"
-//                     name="firstName"
-//                     value={formData.firstName}
-//                     onChange={handleChange}
-//                     placeholder="First name"
-//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-//                     required
-//                   />
-//                 </div>
-//               </div>
-//               <div>
-//                 <Label className="block text-gray-300 mb-3 font-medium text-sm uppercase tracking-wide">
-//                   Last Name
-//                 </Label>
-//                 <div className="relative">
-//                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-//                     <User className="h-5 w-5 text-gray-500" />
-//                   </div>
-//                   <Input
-//                     type="text"
-//                     name="lastName"
-//                     value={formData.lastName}
-//                     onChange={handleChange}
-//                     placeholder="Last name"
-//                     className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-//                     required
-//                   />
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* Email Field */}
-//             <div className="mb-6">
-//               <Label className="block text-gray-300 mb-3 font-medium text-sm uppercase tracking-wide">
-//                 Email Address
-//               </Label>
-//               <div className="relative">
-//                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-//                   <Mail className="h-5 w-5 text-gray-500" />
-//                 </div>
-//                 <Input
-//                   type="email"
-//                   name="email"
-//                   value={formData.email}
-//                   onChange={handleChange}
-//                   placeholder="Enter your email"
-//                   className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-//                   required
-//                 />
-//               </div>
-//             </div>
-
-//             {/* Password Field */}
-//             <div className="mb-6">
-//               <Label className="block text-gray-300 mb-3 font-medium text-sm uppercase tracking-wide">
-//                 Password
-//               </Label>
-//               <div className="relative">
-//                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-//                   <Lock className="h-5 w-5 text-gray-500" />
-//                 </div>
-//                 <Input
-//                   type={showPassword ? "text" : "password"}
-//                   name="password"
-//                   value={formData.password}
-//                   onChange={handleChange}
-//                   placeholder="Create a password"
-//                   className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
-//                   required
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPassword(!showPassword)}
-//                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-400 transition-colors"
-//                 >
-//                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             {/* Confirm Password Field */}
-//             <div className="mb-6">
-//               <Label className="block text-gray-300 mb-3 font-medium text-sm uppercase tracking-wide">
-//                 Confirm Password
-//               </Label>
-//               <div className="relative">
-//                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-//                   <Lock className="h-5 w-5 text-gray-500" />
-//                 </div>
-//                 <Input
-//                   type={showConfirmPassword ? "text" : "password"}
-//                   name="confirmPassword"
-//                   value={formData.confirmPassword}
-//                   onChange={handleChange}
-//                   placeholder="Confirm your password"
-//                   className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
-//                   required
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-//                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-400 transition-colors"
-//                 >
-//                   {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             {/* Terms and Conditions */}
-//             <div className="mb-6">
-//               <Label className="flex items-start">
-//                 <Input 
-//                   type="checkbox" 
-//                   name="agreeToTerms"
-//                   checked={formData.agreeToTerms}
-//                   onChange={handleChange}
-//                   className="rounded bg-black border-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-900 mt-1" 
-//                   required
-//                 />
-//                 <span className="ml-2 text-gray-400 text-sm">
-//                   I agree to the{" "}
-//                   <Link to="/terms" className="text-green-400 hover:text-green-300 transition-colors">
-//                     Terms of Service
-//                   </Link>{" "}
-//                   and{" "}
-//                   <Link to="/privacy" className="text-green-400 hover:text-green-300 transition-colors">
-//                     Privacy Policy
-//                   </Link>
-//                 </span>
-//               </Label>
-//             </div>
-
-//             {/* Signup Button */}
-//             <button
-//               type="submit"
-//               className="w-full py-3.5 px-4 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group"
-//             >
-//               <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
-//               Create Account
-//             </button>
-//           </form>
-
-//           {/* Footer */}
-//           <div className="px-8 py-6 bg-gray-900/50 border-t border-gray-800">
-//             <div className="text-center text-gray-400 text-sm">
-//               Already have an account?{" "}
-//               <Link
-//                 to="/login"
-//                 className="text-green-400 hover:text-green-300 font-semibold transition-colors duration-200 hover:underline"
-//               >
-//                 Sign In
-//               </Link>
-
-//                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
-//             <Lock className="w-3 h-3" />
-//             Your data is securely encrypted and protected
-//           </p>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Security Note */}
-//         <div className="text-center mt-6">
-         
-//         </div>
-//       </div>
-
-//       <style jsx>{`
-//         /* Removed @keyframes float and .animate-float as they were for the old Floating Particles */
-//         @keyframes shimmer {
-//           0% { transform: translateX(-100%); }
-//           100% { transform: translateX(100%); }
-//         }
-//         .animate-shimmer {
-//           animation: shimmer 3s ease-in-out infinite;
-//         }
-//       `}</style>
-//     </div>
-//   );
-// }
-
 import { Link, useNavigate } from "react-router-dom";
-import { Lock, UserPlus, Brain, Eye, EyeOff, Mail, User } from "lucide-react";
+import { Lock, UserPlus, Eye, EyeOff, Mail, User, Shield, Zap, CreditCard } from "lucide-react";
 import { useState } from "react";
 import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { BackgroundBeams } from "../components/ui/background-beams";
 import { useAuth } from "../contexts/AuthContext";
-import { toast } from "sonner"; 
+import { toast } from "sonner";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -292,46 +18,34 @@ export default function Signup() {
     email: "",
     password: "",
     confirmPassword: "",
-    agreeToTerms: false
+    agreeToTerms: false,
   });
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value
-    });
+    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
-
     if (formData.password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
-
     if (!formData.agreeToTerms) {
       toast.error("Please agree to the terms and conditions");
       return;
     }
-
     try {
       setIsSubmitting(true);
-      
-      // Prepare data for backend (combine firstName and lastName into name)
       const name = `${formData.firstName} ${formData.lastName}`;
-      
       await register(formData.email, name, formData.password);
-      
       toast.success("Account created successfully!");
       navigate("/dashboard");
     } catch (error) {
@@ -342,242 +56,217 @@ export default function Signup() {
     }
   };
 
-  return (
-    // ⭐ UPDATED: Use flex items-center justify-center to center the main content/form
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden p-4">
-      
-      {/* 3. Render BackgroundBeams with absolute positioning */}
-      <BackgroundBeams /> 
-      
-      {/* ⭐ NEW LEFT SECTION: Logo/Header on Middle-Left (Absolute Positioning) ⭐ */}
-{/*       <div className="absolute left-0 top-1/2 pb-40 -translate-y-1/2 p-8 z-20 pointer-events-none">
-        <div className="text-left">
-         
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-green-500/25">
-                <Brain className="w-8 h-8 text-white" />
-              </div>
-              <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-blue-600 rounded-2xl blur opacity-30 animate-pulse"></div>
-            </div>
-            <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
-              NoBrain
-            </h1>
-          </div>
-          <p className="text-gray-300 text-xl max-w-sm mt-2">
-            Effortless AI Workflow Automation.
-          </p>
-        </div>
-      </div> */}
+  const trustBadges = [
+    { icon: <Zap className="w-3.5 h-3.5" />, text: "Free to Start" },
+    { icon: <CreditCard className="w-3.5 h-3.5" />, text: "No Credit Card" },
+    { icon: <Shield className="w-3.5 h-3.5" />, text: "Instant Access" },
+  ];
 
+  return (
+    <div className="min-h-screen flex bg-[#0B1020] relative overflow-hidden">
+      {/* ═══ LEFT BRANDING HALF ═══ */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col items-center justify-center p-12 overflow-hidden">
+        <BackgroundBeams />
 
-      {/* Form Card Container (Centered by the parent div) */}
-      <div className="max-w-md w-full relative z-10 flex-shrink-0">
-        
-        {/* Signup Card */}
-        <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
-          {/* Card Header */}
-          <div className="relative p-4 border-black bg-black border-gray-800">
-                {/* RESTORED: Original simple card header design */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <UserPlus className="w-5 h-5 text-gray-400" />
+        {/* Decorative abstract graph */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <svg className="absolute inset-0 w-full h-full opacity-15" style={{ filter: 'blur(0.5px)' }}>
+            <circle cx="30%" cy="30%" r="6" fill="#22D3EE" opacity="0.5" />
+            <circle cx="70%" cy="25%" r="5" fill="#A78BFA" opacity="0.5" />
+            <circle cx="50%" cy="55%" r="7" fill="#22D3EE" opacity="0.4" />
+            <circle cx="25%" cy="70%" r="5" fill="#34D399" opacity="0.4" />
+            <circle cx="75%" cy="65%" r="6" fill="#A78BFA" opacity="0.4" />
+            <line x1="30%" y1="30%" x2="70%" y2="25%" stroke="#22D3EE" strokeWidth="1" strokeDasharray="4 4" opacity="0.4" />
+            <line x1="70%" y1="25%" x2="50%" y2="55%" stroke="#A78BFA" strokeWidth="1" strokeDasharray="4 4" opacity="0.4" />
+            <line x1="50%" y1="55%" x2="25%" y2="70%" stroke="#34D399" strokeWidth="1" strokeDasharray="4 4" opacity="0.4" />
+            <line x1="50%" y1="55%" x2="75%" y2="65%" stroke="#A78BFA" strokeWidth="1" strokeDasharray="4 4" opacity="0.4" />
+          </svg>
+        </div>
+
+        {/* Brand content */}
+        <div className="relative z-10 text-center max-w-md">
+          <img src="/logo.png" alt="NoBrain" className="w-16 h-16 mx-auto mb-6 drop-shadow-[0_0_20px_rgba(34,211,238,0.4)]" />
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+            Start Your{" "}
+            <span className="bg-gradient-to-r from-cyan-400 to-violet-500 text-transparent bg-clip-text">
+              Automation Journey.
+            </span>
+          </h1>
+          <p className="text-[#B6C2D9] text-lg leading-relaxed mb-8">
+            Join thousands of workflow planners building smarter automations with AI.
+          </p>
+
+          {/* Trust badges */}
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {trustBadges.map((badge, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#B6C2D9] text-xs font-medium"
+              >
+                <span className="text-[#22D3EE]">{badge.icon}</span>
+                {badge.text}
               </div>
-              <h2 className="text-2xl font-bold text-white">Create Account</h2>
-            </div>
-            <p className="text-gray-400">Start your journey with us</p>
-            
-            {/* Animated underline */}
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-shimmer"></div>
-          </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-          {/* Form */}
-          <form className="p-8 bg-black" onSubmit={handleSubmit}>
-            {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-4 mb-2">
-              <div>
-                <Label className="block text-gray-300 mb-1 font-medium text-sm uppercase tracking-wide">
-                  First Name
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-500" />
-                  </div>
-                  <Input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    placeholder="First name"
-                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="block text-gray-300 mb-2 font-medium text-sm uppercase tracking-wide">
-                  Last Name
-                </Label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-500" />
-                </div>
-                  <Input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    placeholder="Last name"
-                    className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
+      {/* ═══ RIGHT FORM HALF ═══ */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 relative">
+        <div className="lg:hidden absolute inset-0">
+          <BackgroundBeams />
+        </div>
 
-            {/* Email Field */}
-            <div className="mb-2">
-              <Label className="block text-gray-300 mb-2 font-medium text-sm uppercase tracking-wide">
-                Email Address
-              </Label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-500" />
-                </div>
-                <Input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
-                  required
-                />
-              </div>
-            </div>
+        <div className="max-w-md w-full relative z-10">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-6">
+            <img src="/logo.png" alt="NoBrain" className="w-10 h-10 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]" />
+            <span className="text-2xl font-bold text-white">NoBrain</span>
+          </div>
 
-            {/* Password Field */}
-            <div className="mb-2">
-              <Label className="block text-gray-300 mb-2 font-medium text-sm uppercase tracking-wide">
-                Password
-              </Label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-500" />
-                </div>
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Create a password"
-                  className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-400 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+          <div className="bg-[#11172A]/90 backdrop-blur-xl rounded-[var(--radius-lg)] border border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-lg)] overflow-hidden">
+            {/* Card Header */}
+            <div className="relative p-5 bg-[#0E1425] border-b border-[rgba(255,255,255,0.06)]">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 bg-[rgba(34,211,238,0.1)] rounded-[var(--radius-sm)] border border-[rgba(34,211,238,0.2)]">
+                  <UserPlus className="w-5 h-5 text-[#22D3EE]" />
+                </div>
+                <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Create Account</h2>
+              </div>
+              <p className="text-[#7E8BA3] text-sm">Start your journey with us</p>
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#A78BFA] to-transparent animate-shimmer" />
+            </div>
 
-            {/* Confirm Password Field */}
-            <div className="mb-2">
-              <Label className="block text-gray-300 mb-2 font-medium text-sm uppercase tracking-wide">
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-500" />
-                </div>
-                <Input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="Confirm your password"
-                  className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500 transition-all duration-200"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-400 transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+            {/* Form */}
+            <form className="p-5 space-y-4" onSubmit={handleSubmit}>
+              {/* Name Fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="block text-[#B6C2D9] mb-1.5 font-medium text-xs uppercase tracking-widest">First Name</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-[#7E8BA3]" />
+                    </div>
+                    <Input type="text" name="firstName" value={formData.firstName} onChange={handleChange}
+                      placeholder="First" required
+                      className="w-full pl-9 pr-3 py-2.5 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-md)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/40 focus:border-[#22D3EE] transition-all duration-200 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="block text-[#B6C2D9] mb-1.5 font-medium text-xs uppercase tracking-widest">Last Name</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-[#7E8BA3]" />
+                    </div>
+                    <Input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
+                      placeholder="Last" required
+                      className="w-full pl-9 pr-3 py-2.5 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-md)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/40 focus:border-[#22D3EE] transition-all duration-200 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
 
-            {/* Terms and Conditions */}
-            <div className="mb-2">
-              <Label className="flex items-start">
-                <Input 
-                  type="checkbox" 
-                  name="agreeToTerms"
-                  checked={formData.agreeToTerms}
-                  onChange={handleChange}
-                  className="rounded bg-black border-gray-700 text-gray-400 focus:ring-gray-500 focus:ring-offset-gray-900" 
-                  required
-                />
-                <span className="ml-2 mt-3 text-gray-400 text-sm">
-                  I agree to the{" "}
-                  <Link to="/terms" className="text-gray-300 hover:text-gray-200 transition-colors">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link to="/privacy" className="text-gray-300 hover:text-gray-200 transition-colors">
-                    Privacy Policy
-                  </Link>
-                </span>
-              </Label>
-            </div>
+              {/* Email */}
+              <div>
+                <Label className="block text-[#B6C2D9] mb-1.5 font-medium text-xs uppercase tracking-widest">Email Address</Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-[#7E8BA3]" />
+                  </div>
+                  <Input type="email" name="email" value={formData.email} onChange={handleChange}
+                    placeholder="you@example.com" required
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-md)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/40 focus:border-[#22D3EE] transition-all duration-200 text-sm"
+                  />
+                </div>
+              </div>
 
-            {/* Signup Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl shadow-lg shadow-gray-900/25 hover:shadow-gray-900/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
-              {isSubmitting ? "Creating Account..." : "Create Account"}
-            </button>
-          </form>
+              {/* Password */}
+              <div>
+                <Label className="block text-[#B6C2D9] mb-1.5 font-medium text-xs uppercase tracking-widest">Password</Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-[#7E8BA3]" />
+                  </div>
+                  <Input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange}
+                    placeholder="Create a password" required
+                    className="w-full pl-10 pr-12 py-2.5 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-md)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/40 focus:border-[#22D3EE] transition-all duration-200 text-sm"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#7E8BA3] hover:text-[#B6C2D9] transition-colors">
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
 
-          {/* Footer */}
-          <div className="px-8 py-1 bg-gray-900/50 border-t border-gray-800">
-            <div className="text-center text-gray-400 text-sm">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-green-400 hover:text-green-300 font-semibold transition-colors duration-200 hover:underline"
-              >
-                Sign In
-              </Link>
+              {/* Confirm Password */}
+              <div>
+                <Label className="block text-[#B6C2D9] mb-1.5 font-medium text-xs uppercase tracking-widest">Confirm Password</Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-[#7E8BA3]" />
+                  </div>
+                  <Input type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={formData.confirmPassword} onChange={handleChange}
+                    placeholder="Confirm your password" required
+                    className="w-full pl-10 pr-12 py-2.5 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-md)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/40 focus:border-[#22D3EE] transition-all duration-200 text-sm"
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#7E8BA3] hover:text-[#B6C2D9] transition-colors">
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
 
-               <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
-            <Lock className="w-3 h-3" />
-            Your data is securely encrypted and protected
-          </p>
-            </div>
-          </div>
-        </div>
+              {/* Terms */}
+              <div>
+                <Label className="flex items-start gap-2 cursor-pointer">
+                  <Input type="checkbox" name="agreeToTerms" checked={formData.agreeToTerms} onChange={handleChange}
+                    className="rounded bg-[#0E1425] border-[rgba(255,255,255,0.06)] text-[#22D3EE] focus:ring-[#22D3EE] focus:ring-offset-[#0B1020] mt-0.5" required
+                  />
+                  <span className="text-[#7E8BA3] text-xs leading-relaxed">
+                    I agree to the{" "}
+                    <Link to="/terms" className="text-[#B6C2D9] hover:text-white transition-colors underline">Terms of Service</Link>{" "}
+                    and{" "}
+                    <Link to="/privacy" className="text-[#B6C2D9] hover:text-white transition-colors underline">Privacy Policy</Link>
+                  </span>
+                </Label>
+              </div>
 
-        
-      </div>
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 px-4 bg-gradient-to-br from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white font-semibold rounded-[var(--radius-md)] shadow-[var(--shadow-sm)] hover:shadow-[0_0_24px_rgba(167,139,250,0.3)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                <UserPlus className="w-4 h-4 transition-transform group-hover:scale-110" />
+                {isSubmitting ? "Creating Account..." : "Create Account"}
+              </button>
+            </form>
+
+            {/* Footer */}
+            <div className="px-5 py-3 bg-[#0E1425]/50 border-t border-[rgba(255,255,255,0.04)]">
+              <p className="text-center text-[#7E8BA3] text-sm">
+                Already have an account?{" "}
+                <Link to="/login" className="text-[#22D3EE] hover:text-[#22D3EE]/80 font-semibold transition-colors hover:underline">
+                  Sign In
+                </Link>
+              </p>
+              <p className="text-xs text-[#7E8BA3]/60 flex items-center justify-center gap-1 mt-2">
+                <Lock className="w-3 h-3" />
+                Your data is securely encrypted
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <style>{`
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
         }
-        .animate-shimmer {
-          animation: shimmer 3s ease-in-out infinite;
-        }
+        .animate-shimmer { animation: shimmer 3s ease-in-out infinite; }
       `}</style>
-    </div>
-  );
+    </div>
+  );
 }

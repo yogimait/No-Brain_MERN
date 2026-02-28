@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "react:components": {
+      "source": "google-labs-code/stitch-skills",
+      "sourceType": "github",
+      "computedHash": "0c5e494ae2092c57a893874e6d288de3706a224385c7d26dc4769d9db3aaaa12"
+    },
+    "stitch-loop": {
+      "source": "google-labs-code/stitch-skills",
+      "sourceType": "github",
+      "computedHash": "0199f82746e181b8a40b5638351a16ae8335390b5de4018d2d45aa648f6bf952"
+    }
+  }
+}

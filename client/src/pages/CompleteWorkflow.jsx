@@ -41,7 +41,7 @@ import { nodeLabelToHandler } from '../services/nodeTypeMap';
 const BentoTile = ({ children, className, ...props }) => {
   return (
     <div
-      className={`relative rounded-[var(--radius-lg)] border border-[rgba(255,255,255,0.06)] bg-[#11172A] overflow-hidden shadow-[var(--shadow-sm)] hover:border-[rgba(255,255,255,0.12)] ${className}`}
+      className={`relative rounded-3xl border border-[rgba(255,255,255,0.06)] bg-[#11172A]/60 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:border-white/10 hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)] ${className}`}
       style={{ transitionDuration: 'var(--transition-normal)' }}
       {...props}
     >
@@ -274,14 +274,16 @@ export default function CompleteWorkflowPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden bg-background text-foreground">
+    <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden bg-[#0B1020] text-foreground relative">
+        {/* Grid overlay */}
+        <div className="fixed inset-0 pointer-events-none bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:40px_40px] z-0" />
         {/* Header */}
         <header className="relative z-30 pt-4 flex-shrink-0">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Brain className="w-6 h-6 text-cyan-400" />
+                  <img src="/logo.png" alt="NoBrain" className="w-8 h-8 drop-shadow-[0_0_12px_rgba(34,211,238,0.5)]" />
                   <span className="text-xl font-bold text-white">NoBrain</span>
                 </div>
               </div>
@@ -299,7 +301,7 @@ export default function CompleteWorkflowPage() {
                     </>
                   )}
                 </div>
-                <Button onClick={goToDashboard} className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/20">
+                <Button onClick={goToDashboard} className="bg-gradient-to-r from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white shadow-lg shadow-[rgba(34,211,238,0.2)]">
                   <LayoutDashboard className="w-4 h-4 mr-2" />
                   Dashboard
                 </Button>
@@ -320,20 +322,24 @@ export default function CompleteWorkflowPage() {
               <div className="space-y-6">
                 {/* Success Hero Banner - Centered */}
                 <div className="flex justify-center">
-                  <BentoTile className="p-6 md:p-8 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/30 max-w-2xl w-full">
-                    <div className="flex flex-col items-center text-center gap-4">
-                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                        {location.state?.mode === 'view' ? <Brain className="w-10 h-10 text-white" /> : <CheckCircle className="w-10 h-10 text-white" />}
+                  <BentoTile className="p-8 md:p-10 bg-gradient-to-br from-[#11172A]/80 to-[#11172A]/40 border-cyan-500/20 max-w-2xl w-full relative overflow-hidden group">
+                    {/* Radial glow */}
+                    <div className="absolute -top-20 -right-20 w-80 h-80 bg-[radial-gradient(circle,rgba(34,211,238,0.15)_0%,transparent_70%)] pointer-events-none transition-transform duration-700 group-hover:scale-110" />
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none opacity-50" />
+                    <div className="flex flex-col items-center text-center gap-5 relative z-10">
+                      <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[rgba(34,211,238,0.15)] to-[rgba(167,139,250,0.15)] border border-[rgba(255,255,255,0.1)] flex items-center justify-center shadow-[0_0_40px_rgba(34,211,238,0.2)] relative">
+                        <div className="absolute inset-2 rounded-2xl border border-dashed border-white/10" />
+                        {location.state?.mode === 'view' ? <Brain className="w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" /> : <CheckCircle className="w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" />}
                       </div>
                       <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
                           {location.state?.mode === 'view' ? 'Workflow Overview' : 'Workflow Saved Successfully!'}
                         </h1>
-                        <p className="text-xl text-cyan-300 font-semibold">
+                        <p className="text-xl text-cyan-400 font-semibold drop-shadow-[0_0_10px_rgba(34,211,238,0.3)]">
                           {workflowData.name}
                         </p>
                         {workflowData.description && (
-                          <p className="text-gray-400 text-sm mt-2 max-w-md mx-auto">
+                          <p className="text-[#B6C2D9] text-base mt-4 max-w-md mx-auto leading-relaxed">
                             {workflowData.description}
                           </p>
                         )}
@@ -347,14 +353,14 @@ export default function CompleteWorkflowPage() {
 
                   {/* Workflow Preview - Large Tile */}
                   <BentoTile className="lg:col-span-2 p-0">
-                    <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-cyan-500/20 rounded-lg">
+                    <div className="p-5 border-b border-[rgba(255,255,255,0.06)] bg-[#0B1020]/50 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 shrink-0">
                           <Brain className="w-5 h-5 text-cyan-400" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-white">Workflow Preview</h3>
-                          <p className="text-xs text-gray-500">{workflowStats.totalNodes} nodes • {workflowStats.totalConnections} connections</p>
+                          <h3 className="text-lg font-bold text-white mb-0.5" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Workflow Preview</h3>
+                          <p className="text-xs text-[#7E8BA3] font-medium">{workflowStats.totalNodes} nodes • {workflowStats.totalConnections} connections</p>
                         </div>
                       </div>
                     </div>
@@ -455,25 +461,25 @@ export default function CompleteWorkflowPage() {
 
                 {/* Review Comments */}
                 {reviewComments.length > 0 && (
-                  <BentoTile className="p-6">
-                    <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-700/50">
-                      <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <BentoTile className="p-6 md:p-8">
+                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[rgba(255,255,255,0.06)]">
+                      <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 shrink-0">
                         <MessageSquare className="w-5 h-5 text-blue-400" />
                       </div>
-                      <h3 className="text-lg font-bold text-white">Workflow Analysis</h3>
+                      <h3 className="text-xl font-bold text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Workflow Analysis</h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {reviewComments.map((comment, index) => (
                         <div
                           key={index}
-                          className="flex items-start gap-3 p-4 rounded-xl bg-gray-800/30 border border-gray-700/30"
+                          className="flex items-start gap-4 p-5 rounded-2xl bg-[#0B1020]/50 border border-[rgba(255,255,255,0.04)] hover:border-white/10 transition-colors"
                         >
-                          <div className="flex-shrink-0 mt-0.5">
+                          <div className="flex-shrink-0 mt-0.5 p-2 rounded-lg bg-[#11172A] border border-[rgba(255,255,255,0.02)] shadow-inner">
                             {comment.icon}
                           </div>
                           <div>
-                            <h4 className="font-semibold text-white text-sm">{comment.title}</h4>
-                            <p className="text-xs text-gray-400 mt-1">{comment.message}</p>
+                            <h4 className="font-semibold text-white text-base mb-1">{comment.title}</h4>
+                            <p className="text-sm text-[#B6C2D9] leading-relaxed">{comment.message}</p>
                           </div>
                         </div>
                       ))}

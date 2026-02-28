@@ -254,11 +254,17 @@ export default function WorkflowEditorPage() {
     setPromptLoading(true);
 
     try {
-      // Build a prompt that includes current workflow context
-      const currentWorkflowSummary = `Current workflow: ${nodes.length} nodes (${nodes.map(n => n.data?.label).join(', ')}), ${edges.length} connections`;
-      const modificationPrompt = `${currentWorkflowSummary}. User request: ${promptInput}. Generate the modified workflow.`;
+      // Build a detailed prompt that includes full current workflow context
+      // so the AI understands what nodes exist and their types
+      const nodeDetails = nodes.map(n => {
+        const label = n.data?.label || n.id;
+        const handler = n.data?.handlerType || n.type || 'custom';
+        return `${label} (type: ${handler})`;
+      });
+      const currentWorkflowSummary = `Current workflow has ${nodes.length} nodes: [${nodeDetails.join(', ')}] with ${edges.length} connections. The edges connect: ${edges.map(e => `${e.source} -> ${e.target}`).join(', ')}.`;
+      const modificationPrompt = `${currentWorkflowSummary}\n\nUser modification request: "${promptInput}"\n\nIMPORTANT: Modify the EXISTING workflow above based on the user's request. Add, remove, or update only the nodes mentioned. Keep all unchanged nodes exactly as they are with the same IDs and types. Return the complete modified workflow.`;
 
-      console.log('🤔 Sending workflow modification prompt to Gemini:', modificationPrompt);
+      console.log('🤔 Sending workflow modification prompt:', modificationPrompt);
 
       // Call AI API to generate modified workflow
       const response = await nlpAPI.generateWorkflow(modificationPrompt);
@@ -269,35 +275,57 @@ export default function WorkflowEditorPage() {
         const modifiedWorkflow = response.data.workflow;
 
         // Ensure we have the list of backend-supported node types
-        const availableResp = await nlpAPI.getAvailableNodes();
-        const availableTypes = (availableResp && availableResp.success && availableResp.data && availableResp.data.types) ? availableResp.data.types : [];
+        let availableTypes = [];
+        try {
+          const availableResp = await nlpAPI.getAvailableNodes();
+          availableTypes = (availableResp?.success && availableResp?.data?.types) ? availableResp.data.types : [];
+        } catch { /* ignore, we'll use fallback mapping */ }
 
-        // Process the returned nodes and edges
+        // Build a lookup of existing nodes by id for merging
+        const existingNodesById = new Map(nodes.map(n => [n.id, n]));
+
+        // Process the returned nodes
         const newNodes = (modifiedWorkflow.nodes || []).map((node, idx) => {
-          // Determine handlerKey: prefer explicit handler key if it matches available types
+          const nodeId = node.id || `ai-mod-${idx}-${Date.now()}`;
+
+          // Check if this node already exists in the current workflow
+          const existingNode = existingNodesById.get(nodeId);
+
+          // Determine handlerKey
           let handlerKey = node.type;
-          if (!handlerKey || !availableTypes.includes(handlerKey)) {
+
+          // If the existing node had a valid handler, prefer it
+          if (existingNode?.data?.handlerType) {
+            handlerKey = existingNode.data.handlerType;
+          }
+
+          // Validate handler against available types
+          if (handlerKey && availableTypes.length > 0 && !availableTypes.includes(handlerKey)) {
             // Try mapping by label
             const mapped = mapLabelToHandler(node.data?.label || node.label || '');
-            handlerKey = availableTypes.includes(mapped) ? mapped : 'dataFetcher';
+            handlerKey = (availableTypes.length === 0 || availableTypes.includes(mapped)) ? mapped : 'dataFetcher';
           }
 
-          if (!availableTypes.includes(handlerKey)) {
-            console.warn('Replacing unsupported node type with dataFetcher:', node.type, '-> dataFetcher');
-            handlerKey = 'dataFetcher';
+          if (!handlerKey) {
+            const mapped = mapLabelToHandler(node.data?.label || node.label || '');
+            handlerKey = mapped || 'dataFetcher';
           }
 
-          const displayLabel = mapHandlerToDisplayLabel(handlerKey);
+          // Preserve the AI-returned label (e.g. "WhatsApp Trigger") instead of
+          // overwriting it with the handler display name (e.g. "Data Fetcher")
+          const aiLabel = node.data?.label || node.label || '';
+          const displayLabel = aiLabel || (existingNode?.data?.label) || mapHandlerToDisplayLabel(handlerKey);
 
           return {
-            id: node.id || `ai-mod-${idx}-${Date.now()}`,
+            id: nodeId,
             type: handlerKey,
-            position: node.position || { x: 100 + idx * 250, y: 100 },
+            position: node.position || existingNode?.position || { x: 100 + idx * 250, y: 100 },
             data: {
+              ...(existingNode?.data || {}),
+              ...(node.data || {}),
               label: displayLabel,
               icon: getIconForLabel(displayLabel),
               handlerType: handlerKey,
-              ...node.data
             }
           };
         });
@@ -330,13 +358,21 @@ export default function WorkflowEditorPage() {
         setNodes(newNodes);
         setEdges(newEdges);
 
-        toast.success(`✨ Workflow modified! Added/updated ${newNodes.length} nodes.`);
+        // Give descriptive feedback
+        const addedCount = newNodes.filter(n => !existingNodesById.has(n.id)).length;
+        const removedCount = nodes.filter(n => !newNodes.find(nn => nn.id === n.id)).length;
+        const keptCount = newNodes.length - addedCount;
+        const parts = [];
+        if (addedCount > 0) parts.push(`${addedCount} added`);
+        if (removedCount > 0) parts.push(`${removedCount} removed`);
+        if (keptCount > 0) parts.push(`${keptCount} kept`);
+        toast.success(`✨ Workflow modified! ${parts.join(', ')}.`);
         console.log('✅ Workflow successfully modified with AI');
       } else {
         throw new Error(response?.error || 'Failed to generate modified workflow');
       }
     } catch (error) {
-      console.error('âŒ Error modifying workflow:', error);
+      console.error('❌ Error modifying workflow:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Failed to modify workflow';
       toast.error(errorMsg);
     } finally {
@@ -764,9 +800,9 @@ export default function WorkflowEditorPage() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background text-foreground">
+    <div className="h-screen w-screen flex flex-col bg-[#0B1020] text-foreground">
       {/* Header */}
-      <header className="bg-background/95 backdrop-blur-sm border-b border-border/50">
+      <header className="bg-[#11172A]/95 backdrop-blur-xl border-b border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-sm)]">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2">
@@ -793,10 +829,10 @@ export default function WorkflowEditorPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
+                <Button
                 variant="outline"
                 size="sm"
-                className="text-primary border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all duration-300"
+                className="text-[#22D3EE] border-[#22D3EE]/20 bg-[#22D3EE]/5 hover:bg-[#22D3EE]/10 hover:border-[#22D3EE]/40 transition-all duration-300 shadow-[0_0_8px_rgba(34,211,238,0.1)]"
                 onClick={openPromptBox}
               >
                 <Sparkles className="w-4 h-4 mr-2" />
@@ -851,7 +887,7 @@ export default function WorkflowEditorPage() {
 
               <Button
                 size="sm"
-                className="ml-2"
+                className="ml-2 bg-gradient-to-r from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white shadow-[0_0_12px_rgba(34,211,238,0.2)] hover:shadow-[0_0_20px_rgba(34,211,238,0.3)] transition-all"
                 onClick={applyWorkflow}
                 disabled={nodes.length === 0 || !workflowName.trim() || isSubmitting}
               >
@@ -930,15 +966,15 @@ export default function WorkflowEditorPage() {
           onMouseDown={onPromptMouseDown}
         >
           <Card className="
-            // Themed Background & Border
-            bg-gray-900/95 backdrop-blur-md 
-            border-2 border-gray-700/50 
+            bg-[#11172A]/95 backdrop-blur-xl 
+            border-2 border-[rgba(34,211,238,0.15)] 
             rounded-xl overflow-hidden
             text-gray-100 p-5
+            shadow-[0_0_30px_rgba(34,211,238,0.1)]
           ">
-            <div className="prompt-header flex items-center justify-between mb-4 cursor-move border-b border-gray-700/50 pb-2">
+            <div className="prompt-header flex items-center justify-between mb-4 cursor-move border-b border-[rgba(255,255,255,0.06)] pb-2">
               <span className="font-extrabold text-xl text-gray-300 flex items-center gap-2">
-                <Brain className="w-5 h-5" /> AI Command Center
+                <Brain className="w-5 h-5 text-[#22D3EE]" /> AI Command Center
               </span>
               <Button
                 size="sm"
@@ -969,9 +1005,9 @@ export default function WorkflowEditorPage() {
             <Button
               className="
                 w-full 
-                bg-gray-700 hover:bg-gray-600
+                bg-gradient-to-r from-[#22D3EE] to-[#A78BFA] hover:brightness-110
                 text-white font-extrabold text-base 
-                shadow-md shadow-gray-900/50
+                shadow-[0_0_16px_rgba(34,211,238,0.2)]
                 transition-all duration-300 ease-in-out 
                 disabled:opacity-50 disabled:cursor-not-allowed
               "

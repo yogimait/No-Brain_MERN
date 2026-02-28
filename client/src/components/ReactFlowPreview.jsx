@@ -157,7 +157,7 @@ const ReactFlowPreview = ({ workflow, compact = false }) => {
                 preventScrolling={true}
                 proOptions={{ hideAttribution: true }}
             >
-                <Background color="#374151" gap={16} size={1} />
+                <Background color="#1E2640" gap={16} size={1} />
                 {!compact && <Controls showInteractive={false} />}
             </ReactFlow>
         </div>

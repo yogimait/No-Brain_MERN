@@ -28,6 +28,7 @@ import {
   Sparkles,
   X,
   ArrowLeft,
+  ChevronRight,
   Edit,
   Text,
   BookOpen,
@@ -763,94 +764,94 @@ export default function WorkflowEditorPage() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-black text-gray-100">
+    <div className="h-screen w-screen flex flex-col bg-background text-foreground">
       {/* Header */}
-      <header className="bg-gray-900/60 backdrop-blur-sm border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
+      <header className="bg-background/95 backdrop-blur-sm border-b border-border/50">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
               <NoBrainLogo />
-              <span className="text-xl font-semibold text-gray-300">
-                / {workflowName || 'New Workflow'}
-              </span>
-              <div className="ml-6 w-72 flex items-center">
+              <div className="w-px h-4 bg-border mx-2"></div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground px-2 h-auto" onClick={() => navigate('/dashboard')}>
+                Dashboard
+              </Button>
+              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div className="flex items-center">
                 <input
                   type="text"
-                  placeholder="Workflow Name..."
+                  placeholder="Plan Name..."
                   value={workflowName}
-                  maxLength={20}
+                  maxLength={40}
                   onChange={e => setWorkflowName(e.target.value)}
-                  className="bg-transparent border border-gray-700 rounded-md px-3 py-1.5 w-full text-white placeholder:text-gray-400 focus:outline-none focus:border-gray-600 text-base"
+                  className="bg-transparent border border-transparent hover:border-border rounded px-2 py-1 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary text-sm font-medium transition-colors w-48"
                 />
               </div>
+              <span className="ml-2 font-mono text-[10px] px-2 py-0.5 bg-muted rounded border border-border text-muted-foreground uppercase tracking-wider">
+                {currentPlatform || 'Legacy'}
+              </span>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* ðŸš€ ENHANCED PROMPT BUTTON START (Blue Theme) ðŸš€ */}
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
+                className="text-primary border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all duration-300"
                 onClick={openPromptBox}
-                className="
-                  // Base Styles
-                  bg-gray-800/50 text-gray-300 border-gray-600/50 
-                  hover:bg-gray-700/50 
-                  // Glow Effect
-                  shadow-lg shadow-gray-900/30 
-                  // Hover Animation
-                  transition-all duration-300 ease-in-out 
-                  hover:scale-[1.03] hover:shadow-gray-900/50
-                  active:scale-[0.98]
-                "
               >
                 <Sparkles className="w-4 h-4 mr-2" />
                 AI Prompt
               </Button>
-              {/* ðŸš€ ENHANCED PROMPT BUTTON END ðŸš€ */}
+              
+              <div className="h-4 w-px bg-border mx-2"></div>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handleValidateStructure}
                 disabled={nodes.length === 0}
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Validate Structure
               </Button>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handlePreviewLogic}
                 disabled={nodes.length === 0}
               >
-                <Brain className="w-4 h-4 mr-2" />
+                <Play className="w-4 h-4 mr-2" />
                 Preview Logic
               </Button>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handleExplainWorkflow}
                 disabled={nodes.length === 0}
               >
                 <BookOpen className="w-4 h-4 mr-2" />
                 Explain
               </Button>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-gray-300 border-gray-600 bg-gray-600 hover:border-gray-900 hover:text-gray-300 hover:bg-gray-600"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handleRecreateWorkflow}
                 disabled={nodes.length === 0}
               >
                 <Hammer className="w-4 h-4 mr-2" />
-                Recreate
+                Export Guide
               </Button>
 
               <Button
                 size="sm"
-                className="bg-gray-700 hover:bg-gray-600 text-white transition-colors duration-200"
+                className="ml-2"
                 onClick={applyWorkflow}
                 disabled={nodes.length === 0 || !workflowName.trim() || isSubmitting}
               >
@@ -860,16 +861,8 @@ export default function WorkflowEditorPage() {
                     Saving...
                   </>
                 ) : (
-                  'Submit'
+                  'Save Plan'
                 )}
-              </Button>
-              <Button
-                size="sm"
-                className="bg-gray-700 hover:bg-gray-600 text-white transition-colors duration-200"
-                onClick={() => navigate('/dashboard')}
-              >
-                Back
-                <ArrowLeft className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>
@@ -894,6 +887,7 @@ export default function WorkflowEditorPage() {
               data={explainData}
               loading={explainLoading}
               onClose={() => setShowExplainPanel(false)}
+              selectedNodeId={selectedNodeId}
             />
           )}
           {showRecreatePanel && (

@@ -67,7 +67,7 @@
 //         </div>
 
 //         {/* Login Card */}
-//         <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+//         <div className="bg-[#11172A]/90 backdrop-blur-xl rounded-[var(--radius-lg)] border border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-lg)] overflow-hidden">
 //           {/* Card Header */}
 //           <div className="relative p-8 border-b border-gray-800">
 //             <div className="flex items-center gap-3 mb-2">
@@ -79,7 +79,7 @@
 //             <p className="text-gray-400">Sign in to continue your journey</p>
             
 //             {/* Animated underline */}
-//             <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-shimmer"></div>
+//             <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-[#22D3EE] to-transparent animate-shimmer"></div>
 //           </div>
 
 //           {/* Form */}
@@ -248,7 +248,7 @@ export default function Login() {
 
   return (
     // 1. Full Screen Centering Container
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0B1020] relative overflow-hidden p-4">
       
       {/* 2. Background Beams */}
       <BackgroundBeams /> 
@@ -278,13 +278,13 @@ export default function Login() {
       {/* 4. Right Section: Form Card (Centered by the parent div) */}
       <div className="max-w-md w-full relative z-10 flex-shrink-0">
         
-        <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+         <div className="bg-[#11172A]/90 backdrop-blur-xl rounded-[var(--radius-lg)] border border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-lg)] overflow-hidden">
           
           {/* Card Header */}
-          <div className="relative p-4 border-black bg-black border-gray-800">
+          <div className="relative p-4 border-[#0B1020] bg-[#0B1020] border-[rgba(255,255,255,0.06)]">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <Lock className="w-5 h-5 text-gray-400" />
+              <div className="p-2 bg-[rgba(34,211,238,0.1)] rounded-[var(--radius-sm)] border border-[rgba(34,211,238,0.2)]">
+                <Lock className="w-5 h-5 text-[#22D3EE]" />
               </div>
               <h2 className="text-2xl font-bold text-white">Sign In</h2>
             </div>
@@ -294,7 +294,7 @@ export default function Login() {
           </div>
 
           {/* Form */}
-          <form className="p-8 bg-black" onSubmit={handleSubmit}>
+          <form className="p-8 bg-[#0B1020]" onSubmit={handleSubmit}>
             
             {/* Email Field */}
             <div className="mb-6">
@@ -311,7 +311,7 @@ export default function Login() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-sm)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 focus:border-[#22D3EE] transition-all duration-200"
                   required
                 />
               </div>
@@ -332,7 +332,7 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Your password"
-                  className="w-full pl-10 pr-12 py-3 bg-black border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:border-gray-600 transition-all duration-200"
+                  className="w-full pl-10 pr-12 py-3 bg-[#0E1425] border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-sm)] text-[#F3F6FF] placeholder-[#7E8BA3] focus:outline-none focus:ring-2 focus:ring-[#22D3EE]/50 focus:border-[#22D3EE] transition-all duration-200"
                   required
                 />
                 <button
@@ -349,7 +349,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-xl shadow-lg shadow-gray-900/25 hover:shadow-gray-900/40 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2.5 px-4 bg-gradient-to-br from-[#22D3EE] to-[#A78BFA] hover:brightness-110 text-white font-semibold rounded-[var(--radius-md)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-150 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Lock className="w-5 h-5 transition-transform group-hover:scale-110" />
               {isSubmitting ? "Signing In..." : "Sign In"}

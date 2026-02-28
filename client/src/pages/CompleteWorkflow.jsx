@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Card } from '../components/ui/card';
-import { Vortex } from '../components/ui/vortex';
-import { GlowingEffect } from '../components/ui/glowing-effect';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -41,20 +38,13 @@ import {
 import { workflowAPI } from '../services/api';
 import { nodeLabelToHandler } from '../services/nodeTypeMap';
 
-// Bento Tile component with GlowingEffect
 const BentoTile = ({ children, className, ...props }) => {
   return (
     <div
-      className={`relative rounded-xl border border-gray-700/50 bg-gray-900/40 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-cyan-500/30 ${className}`}
+      className={`relative rounded-[var(--radius-lg)] border border-[rgba(255,255,255,0.06)] bg-[#11172A] overflow-hidden shadow-[var(--shadow-sm)] hover:border-[rgba(255,255,255,0.12)] ${className}`}
+      style={{ transitionDuration: 'var(--transition-normal)' }}
       {...props}
     >
-      <GlowingEffect
-        spread={40}
-        glow={true}
-        disabled={false}
-        proximity={64}
-        inactiveZone={0.01}
-      />
       <div className="relative z-10 h-full">
         {children}
       </div>
@@ -64,26 +54,27 @@ const BentoTile = ({ children, className, ...props }) => {
 
 // Custom Node Component for the workflow chart
 const CustomNode = ({ data, selected = false }) => {
-  const baseBorderStyle = '1px solid rgba(59, 130, 246, 0.5)';
-  const selectedBorderStyle = '1px solid rgba(59, 130, 246, 0.9)';
-  const baseShadowStyle = '0 0 10px rgba(59, 130, 246, 0.3), inset 0 0 5px rgba(59, 130, 246, 0.2)';
-  const selectedShadowStyle = '0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 8px rgba(59, 130, 246, 0.3)';
+  const baseBorderStyle = '1px solid rgba(34, 211, 238, 0.3)';
+  const selectedBorderStyle = '2px solid rgba(34, 211, 238, 0.9)';
+  const baseShadowStyle = 'var(--shadow-sm)';
+  const selectedShadowStyle = 'var(--shadow-md)';
 
   return (
-    <Card
-      className="relative p-3 min-w-[150px] bg-gray-800/70 rounded-lg flex items-center gap-3 cursor-pointer transition-all duration-200"
+    <div
+      className="relative p-3 min-w-[150px] bg-[#11172A] rounded-[var(--radius-md)] flex items-center gap-3 cursor-pointer"
       style={{
         border: selected ? selectedBorderStyle : baseBorderStyle,
         boxShadow: selected ? selectedShadowStyle : baseShadowStyle,
+        transitionDuration: 'var(--transition-fast)',
       }}
     >
-      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-gray-600" />
-      <div className={`p-1.5 bg-gray-700/50 rounded-md ${data.color}`}>
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-[#22D3EE]" />
+      <div className={`p-1.5 bg-[#0E1425] rounded-[var(--radius-sm)] ${data.color}`}>
         {data.icon}
       </div>
-      <span className="font-semibold text-gray-200">{data.label}</span>
-      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-gray-600" />
-    </Card>
+      <span className="font-semibold text-[#B6C2D9]">{data.label}</span>
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-[#22D3EE]" />
+    </div>
   );
 };
 
@@ -283,19 +274,7 @@ export default function CompleteWorkflowPage() {
   };
 
   return (
-    <Vortex
-      backgroundColor="#000000"
-      rangeY={800}
-      particleCount={500}
-      baseHue={170}
-      rangeHue={50}
-      baseSpeed={0.0}
-      rangeSpeed={0.4}
-      baseRadius={1}
-      rangeRadius={2}
-      containerClassName="fixed inset-0 w-full h-screen bg-black"
-    >
-      <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden bg-transparent">
+    <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden bg-background text-foreground">
         {/* Header */}
         <header className="relative z-30 pt-4 flex-shrink-0">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -505,7 +484,6 @@ export default function CompleteWorkflowPage() {
             )}
           </div>
         </main>
-      </div>
-    </Vortex>
+    </div>
   );
 }

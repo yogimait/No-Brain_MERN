@@ -8,59 +8,113 @@ import ReactFlow, {
   Position,
   applyNodeChanges,
   applyEdgeChanges,
-  Panel
+  Panel,
+  MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useCallback, useMemo, useState } from 'react';
 import { getNodeByHandler, getIconForHandler, getAvailableHandlers, isValidHandler, getDisplayLabel } from '../services/nodeRegistry.jsx';
 import { mapLabelToHandler } from '../services/nodeTypeMap';
 import { Card } from '../components/ui/card';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Wand2 } from 'lucide-react';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
+import dagre from 'dagre';
+
+// --- Dagre Layout Setup ---
+const getLayoutedElements = (nodes, edges, direction = 'LR') => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({ rankdir: direction, ranksep: 120, nodesep: 80 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 250, height: 80 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  nodes.forEach((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    node.targetPosition = direction === 'LR' ? Position.Left : Position.Top;
+    node.sourcePosition = direction === 'LR' ? Position.Right : Position.Bottom;
+
+    node.position = {
+      x: nodeWithPosition.x - 250 / 2,
+      y: nodeWithPosition.y - 80 / 2,
+    };
+  });
+
+  return { nodes, edges };
+};
 
 // --- Custom Node Component ---
 const CustomNode = ({ id, data, selected = false }) => {
-  const baseBorderStyle = '1px solid rgba(59, 130, 246, 0.5)'; // Blue border
-  const selectedBorderStyle = '1px solid rgba(59, 130, 246, 0.9)'; // Brighter blue when selected
-  const baseShadowStyle = '0 0 10px rgba(59, 130, 246, 0.3), inset 0 0 5px rgba(59, 130, 246, 0.2)';
-  const selectedShadowStyle = '0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 8px rgba(59, 130, 246, 0.3)';
-
   const handleDelete = (event) => {
     event.stopPropagation();
-    console.log('Deleting node:', id);
-    console.log('onDelete function available:', !!data.onDelete); // Debug log
-    if (data.onDelete) {
-      data.onDelete(id);
-    } else {
-      console.error('onDelete function not found in data');
-    }
+    if (data.onDelete) data.onDelete(id);
   };
 
+  // Determine type styling
+  const isTrigger = data.type === 'trigger' || data.label?.toLowerCase().includes('trigger') || data.category === 'Triggers';
+  const isAction = data.type === 'action' || data.category === 'Actions' || data.category === 'Platforms';
+  
+  const typeLabel = isTrigger ? 'Trigger' : (isAction ? 'Action' : 'Logic');
+  
+  const typeColors = {
+    trigger: 'border-l-emerald-500 bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    logic: 'border-l-cyan-500 bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    action: 'border-l-purple-500 bg-purple-500/10 text-purple-400 border-purple-500/20'
+  };
+  
+  const borderClass = isTrigger ? 'border-l-emerald-500' : (isAction ? 'border-l-purple-500' : 'border-l-cyan-500');
+  const badgeColor = isTrigger ? typeColors.trigger : (isAction ? typeColors.action : typeColors.logic);
+
   return (
-    <Card
-      className="relative p-3 min-w-[150px] bg-gray-800/70 rounded-lg flex items-center gap-3 cursor-pointer transition-all duration-200"
-      style={{
-        border: selected ? selectedBorderStyle : baseBorderStyle,
-        boxShadow: selected ? selectedShadowStyle : baseShadowStyle,
-      }}
-    >
-      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-pink-500" />
-      <div className="p-1.5 bg-gray-700/50 rounded-md text-gray-400">
-        {data.icon}
+    <div className={`
+      relative p-3 min-w-[220px] bg-[#151C33] flex flex-col justify-center cursor-pointer 
+      transition-all duration-300 border-y border-r border-soft shadow-sm rounded-lg
+      animate-node-mount 
+      border-l-[3px] ${borderClass}
+      hover:shadow-md hover:border-r-primary/50 hover:border-y-primary/50
+      ${selected ? 'scale-[1.02] shadow-[0_8px_30px_rgba(0,0,0,0.5)] border-r-primary/80 border-y-primary/80 z-50' : ''}
+    `}>
+      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-muted-foreground !border-none transition-all hover:shadow-[0_0_10px_var(--accent-primary)] hover:scale-125 hover:bg-white" />
+      
+      <div className="flex items-center gap-3">
+        {/* Icon */}
+        <div className={`p-2 rounded-md ${badgeColor.split(' ')[1]} ${badgeColor.split(' ')[2]}`}>
+          {data.icon}
+        </div>
+        
+        {/* Texts */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-foreground text-sm truncate">{data.label}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase tracking-wider font-semibold ${badgeColor}`}>
+              {typeLabel}
+            </span>
+          </div>
+          {data.description && (
+            <span className="text-xs text-muted-foreground truncate opacity-80 mt-0.5" title={data.description}>{data.description}</span>
+          )}
+        </div>
       </div>
-      <span className="font-semibold text-gray-200">{data.label}</span>
-      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-blue-500" />
+
+      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-primary !border-none transition-all hover:shadow-[0_0_10px_var(--accent-primary)] hover:scale-125 hover:bg-white" />
 
       {selected && (
         <button
           onClick={handleDelete}
-          className="absolute -top-2 -right-2 p-1 bg-red-600 rounded-full text-white hover:bg-red-500 transition-colors z-10"
+          className="absolute -top-3 -right-3 p-1.5 bg-destructive rounded-full text-destructive-foreground hover:bg-destructive/90 transition-colors z-10 shadow-lg"
           aria-label="Remove node"
         >
           <X size={12} />
         </button>
       )}
-    </Card>
+    </div>
   );
 };
 
@@ -80,14 +134,11 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, type: 'step' }, eds)), [setEdges]);
   const onNodeClickHandler = useCallback((event, node) => onNodeClick(node.id), [onNodeClick]);
 
-  // Delete node function
   const onDeleteNode = useCallback((nodeId) => {
-    console.log('Deleting node with ID:', nodeId); // Debug log
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
   }, [setNodes, setEdges]);
 
-  // 🆕 New Handler: Function to clear all nodes and edges
   const handleClearAll = useCallback(() => {
     setShowClearDialog(true);
   }, []);
@@ -97,6 +148,16 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
     setEdges([]);
     setShowClearDialog(false);
   }, [setNodes, setEdges]);
+
+  // Dagre Auto-Layout triggering
+  const onLayout = useCallback(() => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
+    setNodes([...layoutedNodes]);
+    setEdges([...layoutedEdges]);
+    window.requestAnimationFrame(() => {
+      reactFlowInstance.fitView({ padding: 0.2, duration: 800 });
+    });
+  }, [nodes, edges, setNodes, setEdges, reactFlowInstance]);
 
   const onDragOver = useCallback((event) => {
     event.preventDefault();
@@ -110,14 +171,29 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
 
     const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 
-    // type is now a handler key from the sidebar (or fallback to label mapping)
+    // Parse specific node data passed from Sidebar (which contains full JSON object)
+    let nodeDataRaw = event.dataTransfer.getData('application/json');
+    let parsedNodeData = null;
+    let desc = '';
+    let category = '';
+    let nodeType = '';
+
+    if (nodeDataRaw) {
+      try {
+        parsedNodeData = JSON.parse(nodeDataRaw);
+        desc = parsedNodeData.description || '';
+        category = parsedNodeData.category || '';
+        nodeType = parsedNodeData.type || '';
+      } catch (e) { console.error('Error parsing dropping node config'); }
+    }
+
     let handlerKey = type;
     if (!isValidHandler(type)) {
       handlerKey = mapLabelToHandler(type);
     }
 
-    const nodeData = getNodeByHandler(handlerKey);
-    const displayLabel = nodeData?.label || getDisplayLabel(handlerKey);
+    const baseNodeData = getNodeByHandler(handlerKey) || {};
+    const displayLabel = parsedNodeData?.label || baseNodeData?.label || getDisplayLabel(handlerKey);
     const icon = getIconForHandler(handlerKey, 16);
 
     const newNode = {
@@ -126,43 +202,97 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
       position,
       data: {
         label: displayLabel,
+        description: desc,
+        category: category,
+        type: nodeType,
         icon: icon,
         handlerType: handlerKey,
-        onDelete: onDeleteNode
+        onDelete: onDeleteNode,
+        originalNode: parsedNodeData || baseNodeData
       },
       selectable: true,
     };
 
-    console.log('Creating new node:', newNode.data.label);
     setNodes((nds) => nds.concat(newNode));
   }, [reactFlowInstance, setNodes, onDeleteNode]);
 
-  // Also add the onDelete function to existing nodes when they're selected
-  // Use useMemo to prevent recreating the array on every render
-  const updatedNodes = useMemo(() => nodes.map(node => ({
-    ...node,
-    data: {
-      ...node.data,
-      onDelete: onDeleteNode
-    }
-  })), [nodes, onDeleteNode]);
+  // Selection mapping & Dynamic Styling
+  const selectedNodeId = nodes.find(n => n.selected)?.id;
+
+  const styledEdges = useMemo(() => {
+    return edges.map((edge) => {
+      const isConnectedToSelected = selectedNodeId 
+        ? (edge.source === selectedNodeId || edge.target === selectedNodeId)
+        : false;
+      
+      const isDimmed = selectedNodeId && !isConnectedToSelected;
+      const isActive = selectedNodeId && isConnectedToSelected;
+
+      let edgeClass = 'react-flow__edge-path';
+      if (isActive) edgeClass += ' edge-active';
+      if (isDimmed) edgeClass += ' edge-dimmed';
+
+      return {
+        ...edge,
+        className: edgeClass,
+        style: isDimmed ? { stroke: 'rgba(255,255,255,0.08)' } : { stroke: '#475569', strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: isDimmed ? 'rgba(255, 255, 255, 0.08)' : (isActive ? '#22D3EE' : '#475569')
+        }
+      };
+    });
+  }, [edges, selectedNodeId]);
+
+  const styledNodes = useMemo(() => {
+    return nodes.map((node) => {
+      const isDimmed = selectedNodeId && node.id !== selectedNodeId && !edges.some(e => 
+        (e.source === selectedNodeId && e.target === node.id) || 
+        (e.target === selectedNodeId && e.source === node.id)
+      );
+      
+      return {
+        ...node,
+        style: {
+          ...node.style,
+          opacity: isDimmed ? 0.4 : 1,
+          transition: 'all 0.3s ease'
+        },
+        data: {
+          ...node.data,
+          onDelete: onDeleteNode
+        }
+      };
+    });
+  }, [nodes, edges, selectedNodeId, onDeleteNode]);
 
   return (
     <>
-      <div className="reactflow-wrapper flex-1 h-full" onDrop={onDrop} onDragOver={onDragOver}>
-        <Panel position="top-right" className="!p-0 !m-0">
+      <div className="reactflow-wrapper flex-1 h-full relative" onDrop={onDrop} onDragOver={onDragOver}>
+        <div className="canvas-lighting-anchor" />
+        
+        <Panel position="top-right" className="!p-0 !m-0 !mt-2 !mr-4 flex flex-col gap-2 z-10">
+          <button
+            onClick={onLayout}
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-[#151C33] hover:bg-[#1A2340] rounded-lg shadow-md transition-all border border-soft hover:border-primary/50"
+            title="Auto-layout graph"
+          >
+            <Wand2 size={16} className="text-primary" />
+            <span>Auto Layout</span>
+          </button>
           <button
             onClick={handleClearAll}
-            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-gray-800/80 hover:bg-gray-700 rounded-lg shadow-lg transition-colors mr-14 mt-2 border border-gray-700/50"
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-[#151C33] hover:bg-destructive/20 hover:text-red-400 rounded-lg shadow-md transition-all border border-soft hover:border-destructive/50"
             title="Clear all nodes and edges from the canvas"
           >
             <Trash2 size={16} />
             <span>Clear All</span>
           </button>
         </Panel>
+        
         <ReactFlow
-          nodes={updatedNodes} // Use updated nodes with onDelete function
-          edges={edges}
+          nodes={styledNodes}
+          edges={styledEdges}
           onConnect={onConnect}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -171,13 +301,12 @@ export default function WorkflowCanvas({ nodes, setNodes, edges, setEdges, onNod
           fitView
           deleteKeyCode={['Delete', 'Backspace']}
         >
-          <Background gap={16} size={1} className="!bg-gray-950" />
+          <Background gap={16} size={1} className="!bg-[transparent]" />
           <MiniMap nodeColor="#3B82F6" maskColor="rgba(15, 23, 42, 0.7)" />
-          <Controls className="[&_button]:bg-gray-800 [&_button]:border-gray-700 [&_button:hover]:bg-gray-700" />
+          <Controls className="[&_button]:bg-[#151C33] [&_button]:border-soft [&_button:hover]:bg-[#1A2340] text-muted-foreground" />
         </ReactFlow>
       </div>
 
-      {/* Clear All Confirmation Dialog */}
       <ConfirmationDialog
         isOpen={showClearDialog}
         onClose={() => setShowClearDialog(false)}

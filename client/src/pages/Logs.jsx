@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { workflowAPI, authAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Vortex } from '../components/ui/vortex';
 import NoBrainLogo from "../components/NoBrainLogo";
 import { toast } from 'sonner';
 
@@ -38,10 +37,10 @@ export default function LogsPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'ready': return 'text-green-400 bg-green-500/10 border-green-500/30';
-      case 'draft': return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-      case 'empty': return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
-      default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
+      case 'ready': return 'text-[#34D399] bg-[rgba(52,211,153,0.1)] border-[rgba(52,211,153,0.3)]';
+      case 'draft': return 'text-[#FBBF24] bg-[rgba(251,191,36,0.1)] border-[rgba(251,191,36,0.3)]';
+      case 'empty': return 'text-[#7E8BA3] bg-[rgba(126,139,163,0.1)] border-[rgba(126,139,163,0.3)]';
+      default: return 'text-[#7E8BA3] bg-[rgba(126,139,163,0.1)] border-[rgba(126,139,163,0.3)]';
     }
   };
 
@@ -82,30 +81,18 @@ export default function LogsPage() {
   }, [getUserId]);
 
   return (
-    <Vortex
-      backgroundColor="#000000"
-      rangeY={800}
-      particleCount={500}
-      baseHue={170}
-      rangeHue={50}
-      baseSpeed={0.0}
-      rangeSpeed={0.4}
-      baseRadius={1}
-      rangeRadius={2}
-      containerClassName="h-screen w-full overflow-hidden fixed inset-0 bg-black"
-    >
-      <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden">
-        {/* Header */}
-        <header className="relative z-30 mb-8 pt-4 flex-shrink-0">
-          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
+    <div className="h-screen flex flex-col overflow-y-auto overflow-x-hidden bg-background text-foreground">
+        {/* Header — Floating Island */}
+        <header className="relative z-30 mb-8 pt-6 flex-shrink-0 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-[1200px] mx-auto">
+            <div className="flex items-center justify-between h-16 px-6 bg-[#11172A]/80 border border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-sm)] backdrop-blur-md rounded-[var(--radius-lg)]">
               <div className="flex items-center gap-3">
                 <NoBrainLogo />
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-600 bg-gray-900/50 text-gray-300 hover:bg-gray-800 hover:text-cyan-300 transition-all text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] border border-[rgba(255,255,255,0.06)] bg-[#11172A] text-[#B6C2D9] hover:border-[rgba(255,255,255,0.12)] hover:text-[#22D3EE] transition-all text-sm font-medium" style={{ transitionDuration: 'var(--transition-fast)' }}
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Dashboard
@@ -121,14 +108,14 @@ export default function LogsPage() {
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-                <FileText className="w-8 h-8 text-cyan-400" />
+              <h1 className="text-3xl font-bold text-[#F3F6FF] mb-2 flex items-center gap-3">
+                <FileText className="w-8 h-8 text-[#22D3EE]" />
                 Planning Activity
               </h1>
-              <p className="text-gray-400">
+              <p className="text-[#B6C2D9]">
                 Track your workflow creation and updates.
-                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-gray-500 border border-gray-700">
-                  Execution Logs: Deprecated
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-[#11172A] text-[#7E8BA3] border border-[rgba(255,255,255,0.06)]">
+                  Planning Trace Log
                 </span>
               </p>
             </div>
@@ -138,19 +125,19 @@ export default function LogsPage() {
           {/* Activity List */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-500 animate-pulse">Loading activity...</p>
+              <div className="w-8 h-8 border-2 border-[#22D3EE] border-t-transparent rounded-full animate-spin" />
+              <p className="text-[#7E8BA3] animate-pulse">Loading activity...</p>
             </div>
           ) : workflows.length === 0 ? (
-            <div className="text-center py-20 bg-gray-900/40 border border-gray-800 rounded-2xl backdrop-blur-sm">
-              <FileText className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">No activity yet</h3>
-              <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+            <div className="text-center py-20 bg-[#11172A]/60 border border-[rgba(255,255,255,0.06)] rounded-[var(--radius-lg)] backdrop-blur-sm">
+              <FileText className="w-16 h-16 text-[#7E8BA3] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[#F3F6FF] mb-2">No activity yet</h3>
+              <p className="text-[#B6C2D9] mb-6 max-w-sm mx-auto">
                 Create your first workflow plan to see activity here.
               </p>
               <button
                 onClick={() => navigate('/workflow')}
-                className="px-6 py-2 rounded-lg border border-gray-700 hover:border-cyan-500 text-cyan-400 hover:text-cyan-300 transition-colors"
+                className="px-6 py-2 rounded-[var(--radius-md)] border border-[rgba(255,255,255,0.06)] hover:border-[#22D3EE] text-[#22D3EE] hover:text-[#22D3EE]/80 transition-colors"
               >
                 Start Planning
               </button>
@@ -168,17 +155,18 @@ export default function LogsPage() {
                   <div
                     key={workflow._id}
                     onClick={() => navigate('/workflow/complete', { state: { workflow: workflow, mode: 'view' } })}
-                    className="group relative flex items-center gap-6 p-5 bg-gray-900/60 hover:bg-gray-800/80 border border-gray-800 hover:border-cyan-500/30 rounded-xl transition-all cursor-pointer backdrop-blur-sm"
+                    className={`group relative flex items-center gap-6 p-5 bg-[#11172A]/60 hover:bg-[#151C33] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] rounded-[var(--radius-lg)] cursor-pointer backdrop-blur-sm border-l-2 ${status === 'ready' ? 'border-l-[#34D399]' : status === 'draft' ? 'border-l-[#FBBF24]' : 'border-l-[#7E8BA3]'}`}
+                    style={{ transitionDuration: 'var(--transition-normal)', boxShadow: 'var(--shadow-sm)' }}
                   >
                     {/* Icon */}
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-800/80 border border-gray-700 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <GitBranch className="w-6 h-6 text-gray-400 group-hover:text-cyan-400 transition-colors" />
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#0E1425] border border-[rgba(255,255,255,0.06)] flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <GitBranch className="w-6 h-6 text-[#7E8BA3] group-hover:text-[#22D3EE] transition-colors" />
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <h3 className="text-lg font-semibold text-gray-200 group-hover:text-white truncate pr-4">
+                        <h3 className="text-lg font-semibold text-[#B6C2D9] group-hover:text-[#F3F6FF] truncate pr-4">
                           {workflow.name}
                         </h3>
                         {/* Status Badge */}
@@ -190,7 +178,7 @@ export default function LogsPage() {
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-6 text-sm text-gray-500">
+                      <div className="flex items-center gap-6 text-sm text-[#7E8BA3] font-mono">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-4 h-4" />
                           <span>{lastEdited}</span>
@@ -208,7 +196,7 @@ export default function LogsPage() {
 
                     {/* Arrow */}
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity -ml-2">
-                      <ArrowLeft className="w-5 h-5 text-cyan-500 rotate-180" />
+                      <ArrowLeft className="w-5 h-5 text-[#22D3EE] rotate-180" />
                     </div>
                   </div>
                 );
@@ -216,7 +204,6 @@ export default function LogsPage() {
             </div>
           )}
         </main>
-      </div>
-    </Vortex>
+    </div>
   );
 }

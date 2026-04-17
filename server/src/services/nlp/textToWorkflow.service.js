@@ -4,7 +4,12 @@
 
 import Groq from 'groq-sdk';
 import { buildSystemPrompt, buildRetrySystemPrompt } from './promptTemplates.js';
-import { getNodeLabelsWithTypes, validateNodesAgainstCatalog, getCatalogVersion } from '../../domains/platform/platform.service.js';
+import {
+  getNodeLabelsWithTypes,
+  getRelevantNodeLabelsWithTypes,
+  validateNodesAgainstCatalog,
+  getCatalogVersion
+} from '../../domains/platform/platform.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { getCachedWorkflow, setCachedWorkflow } from './promptCache.js';
@@ -21,6 +26,26 @@ const groq = new Groq({ apiKey });
 // Retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
+const MAX_COMPLETION_TOKENS = parseEnvInt('GROQ_MAX_COMPLETION_TOKENS', 700, 128, 2000);
+const PROMPT_NODE_LIMIT = parseEnvInt('NLP_PROMPT_NODE_LIMIT', 28, 8, 120);
+const RETRY_PROMPT_NODE_LIMIT = parseEnvInt('NLP_RETRY_PROMPT_NODE_LIMIT', 48, 12, 160);
+const EMPTY_RESPONSE_RECOVERY_ATTEMPTS = 2;
+const EMPTY_RESPONSE_RECOVERY_NODE_LIMIT = parseEnvInt('NLP_EMPTY_RESPONSE_NODE_LIMIT', 16, 8, 48);
+const EMPTY_RESPONSE_RECOVERY_MAX_TOKENS = parseEnvInt(
+  'NLP_EMPTY_RESPONSE_MAX_TOKENS',
+  Math.min(Math.max(MAX_COMPLETION_TOKENS + 500, 900), 1800),
+  256,
+  2000
+);
+const MALFORMED_RETRY_ATTEMPTS = 2;
+const EMPTY_AI_RESPONSE_ERROR = 'EMPTY_AI_RESPONSE';
+
+function parseEnvInt(envKey, fallback, min, max) {
+  const rawValue = process.env[envKey];
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
 
 /**
  * Sleep utility for exponential backoff
@@ -33,11 +58,83 @@ function sleep(ms) {
  * Check if error is a rate limit (429) error
  */
 function isRateLimitError(error) {
-  return error?.status === 429 ||
-    error?.message?.includes('429') ||
-    error?.message?.includes('quota') ||
-    error?.message?.includes('rate limit') ||
-    error?.message?.toLowerCase?.().includes('too many requests');
+  const status = error?.status || error?.response?.status;
+  const message = String(error?.message || '').toLowerCase();
+
+  return status === 429 ||
+    status === 413 ||
+    message.includes('429') ||
+    message.includes('quota') ||
+    message.includes('rate limit') ||
+    message.includes('rate_limit_exceeded') ||
+    message.includes('tokens per minute') ||
+    message.includes('too many requests');
+}
+
+function normalizeContentValue(value) {
+  if (typeof value === 'string') return value.trim();
+
+  if (Array.isArray(value)) {
+    return value
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (!part || typeof part !== 'object') return '';
+
+        if (typeof part.text === 'string') return part.text;
+        if (typeof part.content === 'string') return part.content;
+
+        if (Array.isArray(part.content)) {
+          return normalizeContentValue(part.content);
+        }
+
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  if (value && typeof value === 'object') {
+    if (typeof value.text === 'string') return value.text.trim();
+    if (typeof value.content === 'string') return value.content.trim();
+  }
+
+  return '';
+}
+
+function extractAssistantResponseText(completion) {
+  const choice = completion?.choices?.[0];
+  if (!choice) {
+    throw new Error(`${EMPTY_AI_RESPONSE_ERROR}:no_choice`);
+  }
+
+  const message = choice.message || {};
+
+  const messageContent = normalizeContentValue(message.content);
+  if (messageContent) {
+    return messageContent;
+  }
+
+  const functionArgs = message?.function_call?.arguments;
+  if (typeof functionArgs === 'string' && functionArgs.trim()) {
+    return functionArgs.trim();
+  }
+
+  if (Array.isArray(message?.tool_calls)) {
+    for (const toolCall of message.tool_calls) {
+      const args = toolCall?.function?.arguments;
+      if (typeof args === 'string' && args.trim()) {
+        return args.trim();
+      }
+    }
+  }
+
+  if (typeof choice?.text === 'string' && choice.text.trim()) {
+    return choice.text.trim();
+  }
+
+  const finishReason = choice?.finish_reason || 'unknown';
+  throw new Error(`${EMPTY_AI_RESPONSE_ERROR}:${finishReason}`);
 }
 
 // ── JSON Extraction & Repair Utilities ──
@@ -212,6 +309,187 @@ function applyCorrections(workflow, corrections) {
   });
 }
 
+function isTriggerLikeLabel(label) {
+  const normalized = String(label || '').toLowerCase();
+  return normalized.includes('trigger') ||
+    normalized.includes('schedule') ||
+    normalized.includes('cron') ||
+    normalized.includes('webhook');
+}
+
+function isSummaryIntent(userPrompt) {
+  const prompt = String(userPrompt || '').toLowerCase();
+  return /\bsummar(y|ize|ise|ies|ized|ised|izing|ising)\b/.test(prompt) ||
+    prompt.includes('digest') ||
+    prompt.includes('recap');
+}
+
+function sortNodesByLikelyFlow(nodes) {
+  return [...nodes]
+    .map((node, index) => ({ node, index }))
+    .sort((a, b) => {
+      const aId = Number.parseInt(String(a.node?.id ?? ''), 10);
+      const bId = Number.parseInt(String(b.node?.id ?? ''), 10);
+      const aSortable = Number.isNaN(aId) ? Number.POSITIVE_INFINITY : aId;
+      const bSortable = Number.isNaN(bId) ? Number.POSITIVE_INFINITY : bId;
+
+      if (aSortable !== bSortable) return aSortable - bSortable;
+      return a.index - b.index;
+    })
+    .map(entry => entry.node);
+}
+
+function sanitizeEdges(nodes, edges) {
+  const nodeIdSet = new Set(nodes.map(node => String(node.id)));
+  const dedup = new Set();
+  const sanitized = [];
+
+  for (const rawEdge of Array.isArray(edges) ? edges : []) {
+    const source = String(rawEdge?.source ?? '');
+    const target = String(rawEdge?.target ?? '');
+
+    if (!nodeIdSet.has(source) || !nodeIdSet.has(target) || source === target) continue;
+
+    const key = `${source}->${target}`;
+    if (dedup.has(key)) continue;
+
+    dedup.add(key);
+    sanitized.push({ ...rawEdge, source, target });
+  }
+
+  return sanitized;
+}
+
+function buildAdjacency(edges) {
+  const adjacency = new Map();
+  for (const edge of edges) {
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
+    adjacency.get(edge.source).add(edge.target);
+  }
+  return adjacency;
+}
+
+function hasDirectedPath(adjacency, start, target) {
+  if (start === target) return true;
+
+  const stack = [start];
+  const visited = new Set();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === target) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const neighbors = adjacency.get(current);
+    if (!neighbors) continue;
+    for (const next of neighbors) {
+      if (!visited.has(next)) stack.push(next);
+    }
+  }
+
+  return false;
+}
+
+function addEdgeIfSafe(edges, adjacency, source, target) {
+  if (!source || !target || source === target) return false;
+
+  const alreadyExists = edges.some(edge => edge.source === source && edge.target === target);
+  if (alreadyExists) return false;
+
+  // Do not create a cycle.
+  if (hasDirectedPath(adjacency, target, source)) return false;
+
+  edges.push({ source, target, type: 'step' });
+
+  if (!adjacency.has(source)) adjacency.set(source, new Set());
+  adjacency.get(source).add(target);
+
+  return true;
+}
+
+function repairWorkflowConnectivity(workflow) {
+  if (!workflow || !Array.isArray(workflow.nodes) || workflow.nodes.length <= 1) return;
+
+  const orderedNodes = sortNodesByLikelyFlow(workflow.nodes);
+  const triggerNode = orderedNodes.find(node => isTriggerLikeLabel(node.label)) || orderedNodes[0];
+  const triggerId = String(triggerNode.id);
+
+  const repairedEdges = sanitizeEdges(orderedNodes, workflow.edges);
+  const adjacency = buildAdjacency(repairedEdges);
+
+  const incomingCounts = new Map(orderedNodes.map(node => [String(node.id), 0]));
+  for (const edge of repairedEdges) {
+    incomingCounts.set(edge.target, (incomingCounts.get(edge.target) || 0) + 1);
+  }
+
+  for (let i = 0; i < orderedNodes.length; i++) {
+    const currentId = String(orderedNodes[i].id);
+    if (currentId === triggerId) continue;
+    if ((incomingCounts.get(currentId) || 0) > 0) continue;
+
+    let sourceId = null;
+    for (let j = i - 1; j >= 0; j--) {
+      const candidateId = String(orderedNodes[j].id);
+      if (candidateId === currentId) continue;
+      if (hasDirectedPath(adjacency, currentId, candidateId)) continue;
+      sourceId = candidateId;
+      break;
+    }
+
+    if (!sourceId) {
+      sourceId = triggerId;
+      if (sourceId === currentId || hasDirectedPath(adjacency, currentId, sourceId)) {
+        continue;
+      }
+    }
+
+    if (addEdgeIfSafe(repairedEdges, adjacency, sourceId, currentId)) {
+      incomingCounts.set(currentId, (incomingCounts.get(currentId) || 0) + 1);
+      console.log(`🔗 [Repair] Added missing edge ${sourceId} -> ${currentId}`);
+    }
+  }
+
+  workflow.edges = repairedEdges.map((edge, index) => ({
+    id: edge.id || `edge-${edge.source}-${edge.target}-${index}`,
+    source: edge.source,
+    target: edge.target,
+    type: edge.type || 'step'
+  }));
+}
+
+function enrichSummaryNodeDescription(workflow, userPrompt) {
+  if (!isSummaryIntent(userPrompt) || !Array.isArray(workflow?.nodes)) return;
+
+  const summaryNode = workflow.nodes.find(node => {
+    const label = String(node?.label || '').toLowerCase();
+    return label.includes('summar') ||
+      label.includes('openai') ||
+      label.includes('ai transform') ||
+      label.includes('text') ||
+      label === 'set';
+  });
+
+  if (!summaryNode) return;
+
+  const currentDescription = String(summaryNode?.data?.description || '').toLowerCase();
+  const shouldRewrite = !currentDescription ||
+    currentDescription.includes('placeholder') ||
+    currentDescription.includes('processes');
+
+  if (!shouldRewrite) return;
+
+  summaryNode.data = {
+    ...(summaryNode.data || {}),
+    description: 'Summarizes the fetched emails into a concise daily digest message.'
+  };
+}
+
+function postProcessWorkflow(workflow, userPrompt) {
+  repairWorkflowConnectivity(workflow);
+  enrichSummaryNodeDescription(workflow, userPrompt);
+}
+
 // ── Workflow Enhancement ──
 
 function enhanceWorkflow(workflow, userPrompt, platform) {
@@ -231,17 +509,123 @@ function enhanceWorkflow(workflow, userPrompt, platform) {
 
 // ── Fallback Workflow ──
 
-function generateFallbackWorkflow(userPrompt, platform) {
-  console.log('⚠️ Using fallback workflow generator (AI quota exceeded)');
+function getCatalogLabelMap(platform) {
+  const labelMap = new Map();
+  const nodesWithTypes = getNodeLabelsWithTypes(platform);
+
+  for (const node of nodesWithTypes) {
+    if (!node?.label) continue;
+    labelMap.set(node.label.toLowerCase(), node.label);
+  }
+
+  return labelMap;
+}
+
+function pickCatalogLabel(labelMap, candidates, fallback) {
+  for (const candidate of candidates) {
+    const matched = labelMap.get(String(candidate).toLowerCase());
+    if (matched) return matched;
+  }
+  return fallback;
+}
+
+function extractPromptContext(userPrompt) {
+  const prompt = String(userPrompt || '');
+  const lower = prompt.toLowerCase();
+
+  const emailMatches = [...prompt.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)]
+    .map(match => match[0]);
+
+  const quotedMatches = [...prompt.matchAll(/["'“”‘’]([^"'“”‘’]{2,80})["'“”‘’]/g)]
+    .map(match => match[1]?.trim())
+    .filter(Boolean);
+
+  const senderHint = quotedMatches.find(entry => !entry.includes('@')) || '';
+  const groupHint = emailMatches[0] || '';
+
+  return {
+    wantsDaily: lower.includes('every day') || lower.includes('daily') || lower.includes('each day'),
+    wantsEmailScan: lower.includes('mail') || lower.includes('email') || lower.includes('gmail'),
+    wantsSummary: isSummaryIntent(prompt),
+    wantsWhatsApp: lower.includes('whatsapp') || lower.includes('whats app') || lower.includes('wa '),
+    senderHint,
+    groupHint
+  };
+}
+
+function generateFallbackWorkflow(userPrompt, platform, fallbackReason = 'AI request could not be completed') {
+  console.log(`⚠️ Using fallback workflow generator (${fallbackReason})`);
+
+  const context = extractPromptContext(userPrompt);
+  const labelMap = getCatalogLabelMap(platform);
+
+  const triggerLabel = context.wantsDaily
+    ? pickCatalogLabel(labelMap, ['Schedule Trigger', 'Cron', 'Interval'], 'Schedule Trigger')
+    : pickCatalogLabel(labelMap, ['Manual Trigger', 'Webhook', 'Schedule Trigger'], 'Schedule Trigger');
+
+  let fetchLabel = context.wantsEmailScan
+    ? pickCatalogLabel(labelMap, ['Gmail', 'IMAP Email', 'HTTP Request', 'Gmail Trigger'], 'HTTP Request')
+    : pickCatalogLabel(labelMap, ['HTTP Request', 'Webhook'], 'HTTP Request');
+
+  // Keep trigger nodes at the start; avoid generating trigger-in-the-middle fallback chains.
+  if (isTriggerLikeLabel(fetchLabel)) {
+    fetchLabel = pickCatalogLabel(labelMap, ['Gmail', 'HTTP Request', 'Set'], 'HTTP Request');
+  }
+
+  const summaryLabel = context.wantsSummary
+    ? pickCatalogLabel(labelMap, ['AI Transform', 'OpenAI', 'Set'], 'Set')
+    : null;
+
+  const deliveryLabel = context.wantsWhatsApp
+    ? pickCatalogLabel(labelMap, ['WhatsApp Business Cloud', 'WhatsApp Trigger', 'Twilio'], 'WhatsApp Business Cloud')
+    : null;
+
+  const triggerDescription = context.wantsDaily
+    ? 'Triggers workflow once every day to process new emails.'
+    : 'Triggers workflow when the flow is started.';
+
+  const fetchFilters = [
+    context.senderHint ? `sender "${context.senderHint}"` : '',
+    context.groupHint ? `group address "${context.groupHint}"` : ''
+  ].filter(Boolean).join(' and ');
+
+  const fetchDescription = context.wantsEmailScan
+    ? `Fetches emails${fetchFilters ? ` filtered by ${fetchFilters}` : ''}.`
+    : 'Fetches required source data for downstream processing.';
 
   const nodes = [
-    { id: '1', label: 'Schedule Trigger', data: { description: 'Triggers workflow on a schedule' } },
-    { id: '2', label: 'HTTP Request', data: { description: 'Fetches data or sends to external API' } }
+    {
+      id: '1',
+      label: triggerLabel,
+      data: { description: triggerDescription }
+    },
+    {
+      id: '2',
+      label: fetchLabel,
+      data: { description: fetchDescription }
+    }
   ];
 
-  const edges = [
-    { source: '1', target: '2' }
-  ];
+  if (summaryLabel) {
+    nodes.push({
+      id: String(nodes.length + 1),
+      label: summaryLabel,
+      data: { description: 'Summarizes the fetched emails into a concise daily digest.' }
+    });
+  }
+
+  if (deliveryLabel) {
+    nodes.push({
+      id: String(nodes.length + 1),
+      label: deliveryLabel,
+      data: { description: 'Sends the generated summary to WhatsApp.' }
+    });
+  }
+
+  const edges = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push({ source: nodes[i].id, target: nodes[i + 1].id });
+  }
 
   return {
     nodes,
@@ -253,15 +637,29 @@ function generateFallbackWorkflow(userPrompt, platform) {
       aiProvider: 'fallback',
       platform: platform,
       catalogVersion: getCatalogVersion(platform),
-      note: 'Generated using fallback template due to AI quota limits. Please customize as needed.'
+      note: `Generated using fallback template because ${fallbackReason}. Please customize as needed.`
     }
   };
 }
 
 // ── Groq API Call with Retry ──
 
-async function callGroqWithRetry(messages, modelId, maxRetries = MAX_RETRIES) {
+async function callGroqWithRetry(messages, modelId, maxRetries = MAX_RETRIES, requestOptions = {}) {
   let lastError = null;
+
+  const temperature = Number.isFinite(requestOptions.temperature)
+    ? requestOptions.temperature
+    : 0.3;
+
+  const topP = Number.isFinite(requestOptions.topP)
+    ? requestOptions.topP
+    : 0.9;
+
+  const maxCompletionTokens = Number.isFinite(requestOptions.maxCompletionTokens)
+    ? requestOptions.maxCompletionTokens
+    : MAX_COMPLETION_TOKENS;
+
+  const shortCircuitOnLength = requestOptions.shortCircuitOnLength === true;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -270,25 +668,43 @@ async function callGroqWithRetry(messages, modelId, maxRetries = MAX_RETRIES) {
       const completion = await groq.chat.completions.create({
         messages: messages,
         model: modelId,
-        temperature: 0.3,
-        max_completion_tokens: 8192,
-        top_p: 0.9,
+        temperature: temperature,
+        max_completion_tokens: maxCompletionTokens,
+        top_p: topP,
         stream: false,
         stop: null
       });
 
-      return completion.choices[0]?.message?.content || "";
+      const assistantText = extractAssistantResponseText(completion);
+      if (!assistantText) {
+        throw new Error(`${EMPTY_AI_RESPONSE_ERROR}:blank`);
+      }
+
+      return assistantText;
     } catch (error) {
       lastError = error;
       console.warn(`⚠️ Attempt ${attempt} failed:`, error.message);
 
-      if (isRateLimitError(error)) {
+      const errorMessage = String(error?.message || '');
+      const isRateLimited = isRateLimitError(error);
+      const isEmptyResponse = errorMessage.startsWith(EMPTY_AI_RESPONSE_ERROR);
+      const isEmptyLengthResponse = isEmptyResponse && errorMessage.includes(':length');
+
+      if (isEmptyLengthResponse && shortCircuitOnLength) {
+        throw new Error(`${EMPTY_AI_RESPONSE_ERROR}:length`);
+      }
+
+      if (isRateLimited || isEmptyResponse) {
         if (attempt < maxRetries) {
           const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-          console.log(`⏳ Rate limited. Waiting ${delay}ms before retry...`);
+          console.log(`⏳ Retrying after ${delay}ms (reason: ${isRateLimited ? 'rate limit' : 'empty response'})...`);
           await sleep(delay);
         } else {
-          throw new Error('QUOTA_EXCEEDED');
+          if (isRateLimited) {
+            throw new Error('QUOTA_EXCEEDED');
+          }
+
+          throw new Error(isEmptyResponse ? errorMessage : EMPTY_AI_RESPONSE_ERROR);
         }
       } else {
         throw error;
@@ -307,19 +723,145 @@ function parseAndValidateWorkflow(aiResponse) {
     workflow = extractWorkflowJSON(aiResponse);
     validateWorkflowStructure(workflow);
   } catch (parseErr) {
-    console.warn('Initial JSON extraction failed:', parseErr.message);
-
     const repairedContent = enhancedLocalJSONRepair(aiResponse);
     try {
       workflow = extractWorkflowJSON(repairedContent);
       validateWorkflowStructure(workflow);
-      console.log('✅ Local JSON repair successful');
     } catch (repairErr) {
-      console.error('❌ Local JSON repair failed:', repairErr.message);
-      throw new Error('Failed to parse workflow JSON. The AI response was malformed.');
+      throw new Error(
+        `Failed to parse workflow JSON. Extraction error: ${parseErr.message}. Repair error: ${repairErr.message}.`
+      );
     }
   }
   return workflow;
+}
+
+function buildMalformedRecoveryMessages(userPrompt, platform, nodesWithTypes, malformedResponse) {
+  const allowedNodesJSON = JSON.stringify(nodesWithTypes);
+  const malformedSnippet = String(malformedResponse || '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 1200);
+
+  return [
+    {
+      role: 'system',
+      content: `You are a workflow planner for the "${platform}" platform.
+
+AllowedNodes (JSON Array):
+${allowedNodesJSON}
+
+Return ONLY a valid JSON object between <<<JSON>>> and <<<END_JSON>>>.
+No markdown. No explanation. No extra keys.
+
+JSON schema:
+{
+  "nodes": [
+    { "id": "1", "label": "Exact Label from AllowedNodes", "data": { "description": "..." } }
+  ],
+  "edges": [
+    { "source": "1", "target": "2" }
+  ]
+}
+
+Rules:
+- Use only labels from AllowedNodes.
+- First node must be a trigger.
+- Produce a connected DAG with no isolated nodes.`
+    },
+    {
+      role: 'user',
+      content: `Your previous response was malformed and could not be parsed as JSON.
+
+User Request: "${userPrompt}"
+
+Malformed previous response (for context only, do not repeat):
+"""
+${malformedSnippet || '[empty response]'}
+"""
+
+Regenerate from scratch and return valid JSON only.`
+    }
+  ];
+}
+
+async function parseWorkflowWithRecovery(options) {
+  const {
+    aiResponse,
+    userPrompt,
+    platform,
+    requestedModel,
+    nodesWithTypes,
+    attemptLabel
+  } = options;
+
+  try {
+    const workflow = parseAndValidateWorkflow(aiResponse);
+    return { workflow, response: aiResponse, recovered: false };
+  } catch (parseError) {
+    console.warn(`⚠️ [Parse] ${attemptLabel} response malformed: ${parseError.message}`);
+
+    const recoveryMessages = buildMalformedRecoveryMessages(
+      userPrompt,
+      platform,
+      nodesWithTypes,
+      aiResponse
+    );
+
+    const recoveredResponse = await callGroqWithRetry(
+      recoveryMessages,
+      requestedModel,
+      MALFORMED_RETRY_ATTEMPTS,
+      {
+        temperature: 0.1,
+        topP: 0.8
+      }
+    );
+
+    const recoveredWorkflow = parseAndValidateWorkflow(recoveredResponse);
+    console.log(`✅ [Parse Recovery] ${attemptLabel} response recovered via strict regeneration`);
+
+    return {
+      workflow: recoveredWorkflow,
+      response: recoveredResponse,
+      recovered: true
+    };
+  }
+}
+
+async function recoverFromEmptyAIResponse(options) {
+  const {
+    userPrompt,
+    platform,
+    requestedModel,
+    nodesWithTypes
+  } = options;
+
+  const compactNodesWithTypes = getRelevantNodeLabelsWithTypes(platform, userPrompt, {
+    maxNodes: EMPTY_RESPONSE_RECOVERY_NODE_LIMIT,
+    minScore: 1
+  });
+
+  const recoveryNodes = compactNodesWithTypes.length > 0
+    ? compactNodesWithTypes
+    : nodesWithTypes.slice(0, EMPTY_RESPONSE_RECOVERY_NODE_LIMIT);
+
+  const recoveryMessages = buildMalformedRecoveryMessages(
+    userPrompt,
+    platform,
+    recoveryNodes,
+    '[empty response from model]'
+  );
+
+  return callGroqWithRetry(
+    recoveryMessages,
+    requestedModel,
+    EMPTY_RESPONSE_RECOVERY_ATTEMPTS,
+    {
+      temperature: 0.05,
+      topP: 0.7,
+      maxCompletionTokens: EMPTY_RESPONSE_RECOVERY_MAX_TOKENS
+    }
+  );
 }
 
 // ── Main Generation Function ──
@@ -352,15 +894,26 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
     }
 
     // ── Load platform catalog with types ──
-    const nodesWithTypes = getNodeLabelsWithTypes(platform);
-    if (nodesWithTypes.length === 0) {
+    const allNodesWithTypes = getNodeLabelsWithTypes(platform);
+    if (allNodesWithTypes.length === 0) {
       throw new Error(`Platform catalog for "${platform}" is unavailable`);
     }
 
-    console.log(`📋 [Platform] Loaded ${nodesWithTypes.length} nodes for "${platform}"`);
+    const relevantNodesWithTypes = getRelevantNodeLabelsWithTypes(platform, userPrompt, {
+      maxNodes: PROMPT_NODE_LIMIT,
+      minScore: 2
+    });
+
+    const constrainedNodesWithTypes = relevantNodesWithTypes.length > 0
+      ? relevantNodesWithTypes
+      : allNodesWithTypes.slice(0, PROMPT_NODE_LIMIT);
+
+    console.log(
+      `📋 [Platform] Injecting ${constrainedNodesWithTypes.length}/${allNodesWithTypes.length} relevant nodes for "${platform}"`
+    );
 
     // Build structured system prompt with catalog injection
-    const systemPrompt = buildSystemPrompt(nodesWithTypes, platform);
+    const systemPrompt = buildSystemPrompt(constrainedNodesWithTypes, platform);
 
     const messages = [
       {
@@ -375,16 +928,65 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
 
     // ── First Attempt ──
     try {
-      aiResponse = await callGroqWithRetry(messages, requestedModel);
+      aiResponse = await callGroqWithRetry(messages, requestedModel, MAX_RETRIES, {
+        shortCircuitOnLength: true
+      });
     } catch (error) {
-      if (error.message === 'QUOTA_EXCEEDED') {
+      const errorMessage = String(error?.message || '');
+
+      if (errorMessage === 'QUOTA_EXCEEDED') {
         return buildQuotaExceededResult(userPrompt, platform, startTime);
       }
-      throw error;
+
+      if (errorMessage.startsWith(EMPTY_AI_RESPONSE_ERROR)) {
+        console.warn('⚠️ [Recovery] Empty model output detected. Retrying with compact strict request...');
+
+        try {
+          aiResponse = await recoverFromEmptyAIResponse({
+            userPrompt,
+            platform,
+            requestedModel,
+            nodesWithTypes: constrainedNodesWithTypes
+          });
+
+          console.log('✅ [Recovery] Empty response recovered with compact strict regeneration');
+        } catch (emptyRecoveryError) {
+          const recoveryMessage = String(emptyRecoveryError?.message || '');
+
+          if (recoveryMessage === 'QUOTA_EXCEEDED') {
+            return buildQuotaExceededResult(userPrompt, platform, startTime);
+          }
+
+          if (recoveryMessage.startsWith(EMPTY_AI_RESPONSE_ERROR)) {
+            return buildEmptyResponseFallbackResult(userPrompt, platform, startTime);
+          }
+
+          throw emptyRecoveryError;
+        }
+
+      } else {
+        throw error;
+      }
     }
 
     // ── Parse and Validate ──
-    let workflow = parseAndValidateWorkflow(aiResponse);
+    let workflow;
+    try {
+      const initialParse = await parseWorkflowWithRecovery({
+        aiResponse,
+        userPrompt,
+        platform,
+        requestedModel,
+        nodesWithTypes: constrainedNodesWithTypes,
+        attemptLabel: 'initial'
+      });
+
+      workflow = initialParse.workflow;
+      aiResponse = initialParse.response;
+    } catch (parseError) {
+      console.warn('⚠️ Falling back due to malformed AI response:', parseError.message);
+      return buildMalformedResponseFallbackResult(userPrompt, platform, startTime, parseError.message, aiResponse);
+    }
 
     // ── Catalog Validation ──
     let catalogValidation = validateAgainstCatalog(workflow, platform);
@@ -399,9 +1001,22 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
       console.warn(`⚠️ [Retry] First attempt had ${catalogValidation.invalidNodes.length} hallucinated nodes. Retrying with stricter prompt...`);
 
       // Build stricter system prompt listing the invalid nodes
+      const retryRelevantNodesWithTypes = getRelevantNodeLabelsWithTypes(
+        platform,
+        `${userPrompt} ${catalogValidation.invalidNodes.join(' ')}`,
+        {
+          maxNodes: RETRY_PROMPT_NODE_LIMIT,
+          minScore: 1
+        }
+      );
+
+      const retryNodeSubset = retryRelevantNodesWithTypes.length > 0
+        ? retryRelevantNodesWithTypes
+        : allNodesWithTypes.slice(0, RETRY_PROMPT_NODE_LIMIT);
+
       const retrySystemPrompt = buildRetrySystemPrompt(
         catalogValidation.invalidNodes,
-        nodesWithTypes,
+        retryNodeSubset,
         platform
       );
 
@@ -418,7 +1033,16 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
 
       try {
         const retryResponse = await callGroqWithRetry(retryMessages, requestedModel);
-        const retryWorkflow = parseAndValidateWorkflow(retryResponse);
+        const retryParse = await parseWorkflowWithRecovery({
+          aiResponse: retryResponse,
+          userPrompt,
+          platform,
+          requestedModel,
+          nodesWithTypes: retryNodeSubset,
+          attemptLabel: 'catalog-validation-retry'
+        });
+
+        const retryWorkflow = retryParse.workflow;
         const retryValidation = validateAgainstCatalog(retryWorkflow, platform);
 
         if (retryValidation.valid) {
@@ -460,6 +1084,9 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
     }
 
     console.log(`✅ [Validation] All ${workflow.nodes.length} nodes validated against ${platform} catalog`);
+
+    postProcessWorkflow(workflow, userPrompt);
+    validateWorkflowStructure(workflow);
 
     const enhancedWorkflow = enhanceWorkflow(workflow, userPrompt, platform);
     const executionTime = Date.now() - startTime;
@@ -504,7 +1131,7 @@ async function generateWorkflowFromText(userPrompt, options = {}) {
 // ── Helper: Quota Exceeded Result ──
 
 function buildQuotaExceededResult(userPrompt, platform, startTime) {
-  const fallbackWorkflow = generateFallbackWorkflow(userPrompt, platform);
+  const fallbackWorkflow = generateFallbackWorkflow(userPrompt, platform, 'AI quota limits were reached');
   return {
     success: true,
     workflow: fallbackWorkflow,
@@ -515,6 +1142,50 @@ function buildQuotaExceededResult(userPrompt, platform, startTime) {
     model: 'none',
     cost: '0.000000',
     warning: 'AI quota exceeded. Generated using fallback template. Please customize your workflow.'
+  };
+}
+
+function buildEmptyResponseFallbackResult(userPrompt, platform, startTime) {
+  const fallbackWorkflow = generateFallbackWorkflow(
+    userPrompt,
+    platform,
+    'the AI returned an empty response after retries'
+  );
+
+  return {
+    success: true,
+    workflow: fallbackWorkflow,
+    prompt: userPrompt,
+    platform: platform,
+    executionTime: `${Date.now() - startTime}ms`,
+    aiProvider: 'fallback',
+    model: 'none',
+    cost: '0.000000',
+    warning: 'AI returned an empty response. Generated fallback template. Please refine and regenerate.'
+  };
+}
+
+function buildMalformedResponseFallbackResult(userPrompt, platform, startTime, parseErrorMessage, rawAIResponse) {
+  const fallbackWorkflow = generateFallbackWorkflow(
+    userPrompt,
+    platform,
+    'the AI returned malformed JSON'
+  );
+
+  return {
+    success: true,
+    workflow: fallbackWorkflow,
+    prompt: userPrompt,
+    platform: platform,
+    executionTime: `${Date.now() - startTime}ms`,
+    aiProvider: 'fallback',
+    model: 'none',
+    cost: '0.000000',
+    warning: `AI response could not be parsed (${parseErrorMessage}). Generated fallback template.`,
+    debug: {
+      parseError: parseErrorMessage,
+      hasRawAIResponse: Boolean(rawAIResponse)
+    }
   };
 }
 

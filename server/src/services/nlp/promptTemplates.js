@@ -32,6 +32,9 @@ STRICT RULES:
 - Do NOT rename, abbreviate, or modify any label.
 - If unsure, choose the closest available node from AllowedNodes.
 - First node MUST be a trigger (type: "trigger").
+- All nodes MUST belong to one connected DAG. Do not leave isolated nodes.
+- Every non-trigger node must have at least one incoming edge.
+- If the user asks to summarize, include an explicit transform/summarization step before the final delivery node.
 - Never explain your reasoning. Output only JSON.
 
 Workflow JSON Schema:
@@ -56,6 +59,7 @@ Node Rules:
 3. Every node needs a "data" object with a "description"
 4. Connect nodes with edges using "source" and "target"
 5. Do NOT include "position" fields
+6. Ensure no disconnected nodes exist in the final graph
 
 Response Format:
 - Place JSON between: <<<JSON>>> and <<<END_JSON>>>
@@ -113,6 +117,7 @@ STRICT RULES:
 - Labels must match EXACTLY from AllowedNodes.
 - Never invent nodes. Never use nodes not in AllowedNodes.
 - First node MUST be a trigger.
+- Return a fully connected graph with no isolated nodes.
 - Output only JSON between <<<JSON>>> and <<<END_JSON>>>`;
 }
 

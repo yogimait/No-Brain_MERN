@@ -16,6 +16,106 @@ const SUPPORTED_PLATFORMS = ['n8n'];
 // ── In-memory catalog cache (lazy-loaded once per platform) ──
 const catalogCache = new Map();
 
+const RELEVANCE_STOPWORDS = new Set([
+    'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'in', 'on', 'at', 'by', 'with', 'from',
+    'is', 'are', 'be', 'this', 'that', 'it', 'as', 'into', 'then', 'than', 'if', 'when',
+    'workflow', 'automation', 'automate', 'create', 'build', 'make', 'please', 'my', 'me'
+]);
+
+const RELEVANCE_SYNONYMS = {
+    email: ['email', 'mail', 'gmail', 'imap', 'smtp', 'outlook'],
+    whatsapp: ['whatsapp', 'wa', 'twilio', 'sms', 'message', 'chat'],
+    slack: ['slack', 'notify', 'notification'],
+    schedule: ['schedule', 'cron', 'daily', 'weekly', 'hourly', 'interval', 'trigger'],
+    sheet: ['sheet', 'sheets', 'spreadsheet', 'excel'],
+    summarize: ['summarize', 'summary', 'digest', 'condense', 'ai', 'llm']
+};
+
+const DEFAULT_FALLBACK_LABELS = [
+    'Schedule Trigger',
+    'Webhook',
+    'Manual Trigger',
+    'HTTP Request',
+    'Set',
+    'IF',
+    'Merge',
+    'Wait'
+];
+
+function tokenizeForRelevance(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(token => token.length > 1 && !RELEVANCE_STOPWORDS.has(token));
+}
+
+function expandQueryTokens(rawTokens) {
+    const expanded = new Set(rawTokens);
+
+    for (const [root, variants] of Object.entries(RELEVANCE_SYNONYMS)) {
+        const matched = expanded.has(root) || variants.some(token => expanded.has(token));
+        if (!matched) continue;
+
+        expanded.add(root);
+        variants.forEach(token => expanded.add(token));
+    }
+
+    return expanded;
+}
+
+function scoreNodeForPrompt(node, queryTokens) {
+    const label = String(node?.label || '');
+    const lowerLabel = label.toLowerCase();
+    const labelTokens = new Set(tokenizeForRelevance(label));
+    let score = 0;
+
+    for (const token of queryTokens) {
+        if (labelTokens.has(token)) score += 4;
+        if (token.length > 3 && lowerLabel.includes(token)) score += 2;
+    }
+
+    if (node?.type === 'trigger' && (queryTokens.has('trigger') || queryTokens.has('schedule'))) {
+        score += 2;
+    }
+
+    return score;
+}
+
+function buildFallbackSubset(nodes, maxNodes) {
+    const selected = [];
+    const used = new Set();
+
+    const pushNode = (node) => {
+        if (!node || used.has(node.label)) return;
+        used.add(node.label);
+        selected.push({ label: node.label, type: node.type });
+    };
+
+    // Prefer broadly useful core nodes first.
+    for (const fallbackLabel of DEFAULT_FALLBACK_LABELS) {
+        const matched = nodes.find(node => node.label.toLowerCase() === fallbackLabel.toLowerCase());
+        pushNode(matched);
+        if (selected.length >= maxNodes) return selected;
+    }
+
+    // Ensure we have a balanced baseline if specific labels are missing.
+    for (const node of nodes) {
+        if (node.type === 'trigger') {
+            pushNode(node);
+            if (selected.length >= maxNodes) return selected;
+        }
+    }
+
+    for (const node of nodes) {
+        pushNode(node);
+        if (selected.length >= maxNodes) return selected;
+    }
+
+    return selected;
+}
+
 /**
  * Returns list of supported platform identifiers.
  */
@@ -84,6 +184,68 @@ export function getNodeLabelsWithTypes(platform) {
     const catalog = loadCatalog(platform);
     if (!catalog) return [];
     return catalog.nodes.map(node => ({ label: node.label, type: node.type }));
+}
+
+/**
+ * Returns a ranked subset of node labels/types relevant to a user prompt.
+ * This keeps prompt size small and avoids sending the full platform catalog.
+ *
+ * @param {string} platform - Platform identifier
+ * @param {string} userPrompt - User request text
+ * @param {{maxNodes?: number, minScore?: number}} options - Relevance tuning
+ * @returns {Array<{label: string, type: string}>}
+ */
+export function getRelevantNodeLabelsWithTypes(platform, userPrompt, options = {}) {
+    const catalog = loadCatalog(platform);
+    if (!catalog) return [];
+
+    const maxNodes = Math.min(Math.max(options.maxNodes ?? 28, 8), 120);
+    const minScore = Math.max(options.minScore ?? 2, 0);
+    const nodes = catalog.nodes.map(node => ({ label: node.label, type: node.type }));
+
+    const queryTokens = expandQueryTokens(tokenizeForRelevance(userPrompt));
+    if (queryTokens.size === 0) {
+        return buildFallbackSubset(nodes, maxNodes);
+    }
+
+    const ranked = nodes
+        .map(node => ({ ...node, score: scoreNodeForPrompt(node, queryTokens) }))
+        .filter(node => node.score >= minScore)
+        .sort((a, b) => b.score - a.score);
+
+    const selected = [];
+    const selectedLabels = new Set();
+
+    for (const node of ranked) {
+        if (selectedLabels.has(node.label)) continue;
+        selectedLabels.add(node.label);
+        selected.push({ label: node.label, type: node.type });
+        if (selected.length >= maxNodes) break;
+    }
+
+    if (selected.length === 0) {
+        return buildFallbackSubset(nodes, maxNodes);
+    }
+
+    if (!selected.some(node => node.type === 'trigger')) {
+        const topTrigger = ranked.find(node => node.type === 'trigger') || nodes.find(node => node.type === 'trigger');
+        if (topTrigger && !selectedLabels.has(topTrigger.label)) {
+            selected.unshift({ label: topTrigger.label, type: topTrigger.type });
+            selectedLabels.add(topTrigger.label);
+        }
+    }
+
+    if (selected.length < maxNodes) {
+        const fallback = buildFallbackSubset(nodes, maxNodes);
+        for (const node of fallback) {
+            if (selected.length >= maxNodes) break;
+            if (selectedLabels.has(node.label)) continue;
+            selected.push(node);
+            selectedLabels.add(node.label);
+        }
+    }
+
+    return selected.slice(0, maxNodes);
 }
 
 /**
